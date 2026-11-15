@@ -116,10 +116,17 @@ test('keeps a full-screen preview and bottom thumbnails through capture, review,
   const scan = new ScanPage(page);
   await scan.open();
   await scan.choosePhoto();
-  await page.getByRole('button', { name: 'Display' }).click();
+  await expect(page.getByRole('heading', { name: 'Review your photo', exact: true })).toBeFocused();
+  const display = page.getByRole('button', { name: 'Display', exact: true });
+  await display.press('Enter');
+  await expect(display).toHaveAttribute('aria-expanded', 'true');
   await page.getByRole('checkbox', { name: 'Large text' }).check();
-  await page.getByRole('button', { name: 'Display' }).click();
-  await page.getByRole('button', { name: 'Open camera' }).press('Enter');
+  await display.press('Enter');
+  await expect(display).toHaveAttribute('aria-expanded', 'false');
+  const open = page.getByRole('button', { name: 'Open camera', exact: true });
+  await open.focus();
+  await expect(open).toBeFocused();
+  await page.keyboard.press('Enter');
 
   const camera = page.getByRole('dialog', { name: 'Label camera' });
   const preview = camera.getByLabel('Live camera preview');
