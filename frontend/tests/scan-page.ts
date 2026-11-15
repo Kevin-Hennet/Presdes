@@ -13,6 +13,10 @@ export class ScanPage {
     await this.page.getByLabel('Photo file', { exact: true }).setInputFiles(file);
   }
 
+  async reviewPhoto(number: number) {
+    await this.page.getByRole('button', { name: 'Review photo ' + number, exact: true }).click();
+  }
+
   async analyze() {
     await this.page.getByRole('button', { name: 'Analyze label' }).click();
   }

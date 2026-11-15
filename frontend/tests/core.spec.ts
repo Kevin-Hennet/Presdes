@@ -107,10 +107,10 @@ test('invalidates responses from a photo replaced during analysis', async ({ pag
   const scan = new ScanPage(page);
   await scan.open();
   await scan.choosePhoto();
+  const firstPhoto = await page.getByRole('img', { name: 'Medication label photo selected for analysis' }).getAttribute('src');
   await scan.analyze();
   await expect(page.locator('html')).toHaveAttribute('data-first-scan-started', 'true');
-  await expect(page.getByRole('button', { name: 'Analyzing…' })).toBeDisabled();
-  const firstPhoto = await page.getByRole('img', { name: 'Medication label photo selected for analysis' }).getAttribute('src');
+  await page.getByRole('button', { name: 'Stop waiting', exact: true }).click();
   await page.getByRole('button', { name: 'Retake photo 1' }).click();
   await page.getByLabel('Photo file', { exact: true }).setInputFiles({ name: 'new-label.png', mimeType: 'image/png', buffer: bytes });
   await expect(page.locator('html')).toHaveAttribute('data-first-scan-aborted', 'true');
@@ -150,7 +150,7 @@ test('can retry a failed scan and retake an unreadable image', async ({ page }) 
   await expect(page.getByRole('heading', { name: 'AI explanation', exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Directions', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'New scan', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Scan a medication label' })).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Scan your label' })).toBeFocused();
   await scan.choosePhoto();
   await expect(page.getByRole('heading', { name: 'Review your photo' })).toBeVisible();
 });
@@ -185,10 +185,11 @@ test('captures successive camera views and stops the video track when done', asy
   await expect(page.getByRole('button', { name: 'Review photo 1' })).toBeVisible();
   await expect(page.getByLabel('Live camera preview')).toBeVisible();
   await page.getByRole('button', { name: 'Capture photo' }).click();
-  await expect(page.getByRole('button', { name: 'Review photo 2' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Label camera' }).getByRole('button', { name: 'Review photo 2' })).toBeVisible();
   await page.getByRole('button', { name: 'Done with camera' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-track-stopped', 'true');
   await expect(page.getByRole('heading', { name: 'Review your photos' })).toBeFocused();
+  await new ScanPage(page).reviewPhoto(2);
   await expect(page.getByText('captured-label-2.jpg', { exact: false })).toBeVisible();
 });
 
@@ -339,7 +340,7 @@ test('opens and closes the source photo from the results heading with the keyboa
 
 test('opens Scan for old FDA reference links', async ({ page }) => {
   const navigation = page.getByRole('navigation', { name: 'Main navigation' });
-  const scanHeading = page.getByRole('heading', { name: 'Scan a medication label' });
+  const scanHeading = page.getByRole('heading', { name: 'Scan your label' });
   await page.goto('/#reference');
   await expect(page).toHaveURL('/#scan');
   await expect(scanHeading).toBeVisible();

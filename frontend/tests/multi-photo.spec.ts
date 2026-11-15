@@ -18,9 +18,12 @@ test('uploads, removes and retakes views, then exposes every submitted photo in 
   await scan.open();
   const upload = page.getByLabel('Photo file', { exact: true });
   await upload.setInputFiles([file('front.png'), file('side.png'), file('extra.png')]);
+  await scan.reviewPhoto(3);
   await page.getByRole('button', { name: 'Remove photo 3', exact: true }).click();
   await expect(page.getByText('extra.png', { exact: false })).toHaveCount(0);
+  await scan.reviewPhoto(1);
   const front = await page.getByRole('img', { name: 'Medication label photo 1 selected for analysis' }).getAttribute('src');
+  await scan.reviewPhoto(2);
   await page.getByRole('button', { name: 'Retake photo 2', exact: true }).click();
   await expect(page.getByText('Retaking photo 2.', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Analyze label' })).toBeDisabled();
@@ -78,6 +81,7 @@ test('returns mismatched bottles to photo review without showing combined instru
   await expect(page.getByText('Saved to Scan history.')).toHaveCount(0);
   await page.getByRole('button', { name: 'Review photos', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Review your photos' })).toBeFocused();
+  await scan.reviewPhoto(2);
   await page.getByRole('button', { name: 'Remove photo 2', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Review your photo', exact: true })).toBeFocused();
 });

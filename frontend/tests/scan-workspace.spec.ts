@@ -7,7 +7,7 @@ import { fictionalPhoto, ScanPage } from './scan-page';
 test.use({ serviceWorkers: 'block' });
 
 const labelName = 'Pine Sample 5 mg';
-const scanTitle = 'Scan a medication label';
+const scanTitle = 'Scan your label';
 const resultTitle = 'Read your label';
 const historyUrl = /\/api\/saved-scans(?:\?|$)/;
 const detail = '**/api/saved-scans/' + exampleAnalysis.id;
@@ -54,6 +54,7 @@ test('restores an ordered draft after navigation, refresh and reopening the brow
     await expect(page.getByText('Photo 1 · front.png', { exact: true })).toBeVisible();
     await expect.poll(async () => (await storedWorkspace(page))?.language).toBe('es');
     await page.reload();
+    await new ScanPage(page).reviewPhoto(2);
     await expect(page.getByText('Photo 2 · back.png', { exact: true })).toBeVisible();
     await expect(page.getByLabel('Explanation language', { exact: true })).toHaveValue('es');
   } finally {
@@ -64,6 +65,7 @@ test('restores an ordered draft after navigation, refresh and reopening the brow
     const page = second.pages()[0] ?? await second.newPage();
     await new ScanPage(page).open();
     await expect(page.getByText('Photo 1 · front.png', { exact: true })).toBeVisible();
+    await new ScanPage(page).reviewPhoto(2);
     await expect(page.getByText('Photo 2 · back.png', { exact: true })).toBeVisible();
     await expect(page.getByLabel('Explanation language', { exact: true })).toHaveValue('es');
     await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -247,10 +249,13 @@ test('reuses completed HEIC previews and retains pending originals after an inte
   await expect(page.getByRole('heading', { name: 'Review your photo', exact: true })).toBeVisible();
   expect(previews).toBe(2);
   await page.getByRole('button', { name: 'Retry photo preview', exact: true }).click();
+  await scan.reviewPhoto(2);
   await expect(page.getByText('Photo 2 · front.heic', { exact: true })).toBeVisible();
+  await scan.reviewPhoto(3);
   await expect(page.getByText('Photo 3 · side.heic', { exact: true })).toBeVisible();
   await expect.poll(async () => (await storedWorkspace(page))?.photos.length).toBe(3);
   await page.reload();
+  await scan.reviewPhoto(2);
   const preview = page.getByRole('img', { name: 'Medication label photo 2 selected for analysis', exact: true });
   await expect.poll(() => preview.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
   expect(previews).toBe(3);

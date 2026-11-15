@@ -25,7 +25,8 @@ export function Capture({ photos, maxPhotos, disabled = false, retaking, onPhoto
   const [cameraOpen, setCameraOpen] = useState(false);
   const [error, setError] = useState('');
   const available = !disabled && (photos.length < maxPhotos || Boolean(retaking));
-  const uploadLabel = retaking ? 'Choose replacement photo' : photos.length ? 'Add photo files' : 'Choose photos';
+  const uploadLabel = retaking ? 'Choose replacement photo' : photos.length ? 'Add photos' : 'Choose photos';
+  const cameraStyle = photos.length && !retaking ? 'button outline' : 'button primary';
 
   useLayoutEffect(() => {
     if (!cameraOpen && restoreCameraFocus.current) {
@@ -70,14 +71,14 @@ export function Capture({ photos, maxPhotos, disabled = false, retaking, onPhoto
     <div className="capture">
       <input ref={upload} hidden type="file" aria-label="Photo file" accept={imageTypes} multiple={!retaking} onChange={choosePhoto} />
       <input ref={native} hidden type="file" aria-label="Photo from device camera" accept={imageTypes} capture="environment" onChange={choosePhoto} />
-      <div className="button-row">
-        <button ref={cameraButton} type="button" className="button primary" aria-haspopup="dialog" disabled={disabled} onClick={openCamera}>
+      <div className="capture-actions">
+        <button ref={cameraButton} type="button" className={cameraStyle} aria-haspopup="dialog" disabled={disabled} onClick={openCamera}>
           <Camera size={20} aria-hidden="true" /> Open camera
         </button>
         <button type="button" className="button outline" disabled={!available} onClick={() => upload.current?.click()}>
           <ImagePlus size={20} aria-hidden="true" /> {uploadLabel}
         </button>
-        <button type="button" className="button plain" disabled={!available} onClick={() => native.current?.click()}>
+        <button type="button" className="button plain device-camera" disabled={!available} onClick={() => native.current?.click()}>
           Use device camera
         </button>
       </div>
