@@ -4,6 +4,15 @@ import { ScanPage } from './scan-page';
 async function simulateCamera(page: Page, useNativeStream: boolean) {
   await page.addInitScript(useNative => {
     const root = () => document.documentElement.dataset;
+    const events: string[] = [];
+    for (const name of ['keydown', 'keyup', 'click', 'cancel', 'close', 'visibilitychange', 'pagehide']) {
+      window.addEventListener(name, event => {
+        const target = event.target instanceof HTMLElement ? event.target.closest('button, dialog') : null;
+        const label = target?.getAttribute('aria-label') ?? target?.textContent?.trim().slice(0, 40) ?? '';
+        events.push([name, (event as KeyboardEvent).key ?? '', label].join(' '));
+        root().cameraEvents = JSON.stringify(events.slice(-30));
+      }, true);
+    }
     const videoSources = new WeakMap<HTMLVideoElement, HTMLCanvasElement>();
     const nativeStream = useNative && typeof HTMLCanvasElement.prototype.captureStream === 'function';
     Object.defineProperty(document, 'hidden', { value: false, configurable: true });
@@ -75,6 +84,17 @@ async function simulateCamera(page: Page, useNativeStream: boolean) {
     };
   }, useNativeStream);
 }
+
+test.afterEach(async ({ page }, info) => {
+  if (info.status === info.expectedStatus) return;
+  const diagnostic = await page.evaluate(() => ({
+    ...document.documentElement.dataset,
+    dialog: document.querySelector('dialog')?.open,
+    active: document.activeElement?.textContent?.trim().slice(0, 80),
+    alerts: [...document.querySelectorAll('[role="alert"]')].map(element => element.textContent),
+  })).catch(() => null);
+  console.log('Camera test diagnostics', JSON.stringify(diagnostic));
+});
 
 async function insideViewport(locator: Locator, page: Page) {
   const bounds = await locator.boundingBox();
