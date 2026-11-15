@@ -52,7 +52,7 @@ caddy version
 Authenticate Git through an authorized SSH key or credential helper if the repository requires it. Use your deploy operator account for Git and the build.
 
 ```bash
-git clone --branch codex/presdes-reliability-accessibility https://github.com/Kevin-Hennet/labellens-2.git "$HOME/presdes-source"
+git clone --branch master https://github.com/Kevin-Hennet/Presdes.git "$HOME/presdes-source"
 cd "$HOME/presdes-source"
 getent passwd presdes >/dev/null || sudo useradd --system --user-group --home-dir /opt/presdes --shell /usr/sbin/nologin presdes
 sudo install -d -m 0755 /opt/presdes
