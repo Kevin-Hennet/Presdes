@@ -4,19 +4,9 @@ import { ScanPage } from './scan-page';
 async function simulateCamera(page: Page, useNativeStream: boolean) {
   await page.addInitScript(useNative => {
     const root = () => document.documentElement.dataset;
-    const events: string[] = [];
-    for (const name of ['keydown', 'keyup', 'click', 'cancel', 'close', 'visibilitychange', 'pagehide']) {
-      window.addEventListener(name, event => {
-        const target = event.target instanceof HTMLElement ? event.target.closest('button, dialog') : null;
-        const label = target?.getAttribute('aria-label') ?? target?.textContent?.trim().slice(0, 40) ?? '';
-        events.push([name, (event as KeyboardEvent).key ?? '', label].join(' '));
-        root().cameraEvents = JSON.stringify(events.slice(-30));
-      }, true);
-    }
     const videoSources = new WeakMap<HTMLVideoElement, HTMLCanvasElement>();
     const nativeStream = useNative && typeof HTMLCanvasElement.prototype.captureStream === 'function';
     Object.defineProperty(document, 'hidden', { value: false, configurable: true });
-    if (!navigator.mediaDevices) Object.defineProperty(navigator, 'mediaDevices', { value: {} });
 
     // Emulate the same camera frames in WebKit without relying on host media services.
     if (!nativeStream) {
@@ -38,7 +28,7 @@ async function simulateCamera(page: Page, useNativeStream: boolean) {
       };
     }
 
-    navigator.mediaDevices.getUserMedia = async () => {
+    async function getUserMedia() {
       const source = document.createElement('canvas');
       source.width = 640;
       source.height = 480;
@@ -72,7 +62,10 @@ async function simulateCamera(page: Page, useNativeStream: boolean) {
         stopped();
       };
       return stream as MediaStream;
-    };
+    }
+    const mediaDevices = { getUserMedia };
+    // WebKit can return a native MediaDevices object after an assignment to an earlier wrapper.
+    Object.defineProperty(Navigator.prototype, 'mediaDevices', { configurable: true, get: () => mediaDevices });
     const draw = CanvasRenderingContext2D.prototype.drawImage;
     CanvasRenderingContext2D.prototype.drawImage = function (
       this: CanvasRenderingContext2D, ...args: Parameters<typeof draw>
@@ -84,17 +77,6 @@ async function simulateCamera(page: Page, useNativeStream: boolean) {
     };
   }, useNativeStream);
 }
-
-test.afterEach(async ({ page }, info) => {
-  if (info.status === info.expectedStatus) return;
-  const diagnostic = await page.evaluate(() => ({
-    ...document.documentElement.dataset,
-    dialog: document.querySelector('dialog')?.open,
-    active: document.activeElement?.textContent?.trim().slice(0, 80),
-    alerts: [...document.querySelectorAll('[role="alert"]')].map(element => element.textContent),
-  })).catch(() => null);
-  console.log('Camera test diagnostics', JSON.stringify(diagnostic));
-});
 
 async function insideViewport(locator: Locator, page: Page) {
   const bounds = await locator.boundingBox();
@@ -153,6 +135,7 @@ test('keeps a full-screen preview and bottom thumbnails through capture, review,
   const capture = camera.getByRole('button', { name: 'Capture photo', exact: true });
   const done = camera.getByRole('button', { name: 'Done with camera' });
   const thumbs = camera.getByRole('list', { name: 'Selected photos' });
+  await expect(page.locator('html')).toHaveAttribute('data-camera-opens', '1');
   await expect(camera).toBeVisible();
   await expect(thumbs.getByRole('button', { name: 'Review photo 1' })).toBeVisible();
   const dialogBounds = await insideViewport(camera, page);
@@ -235,6 +218,7 @@ test('contains keyboard focus, locks page scroll and releases the camera on Esca
   expect(await page.evaluate(() => getComputedStyle(document.body).position)).toBe('static');
 
   await open.press('Enter');
+  await expect(page.locator('html')).toHaveAttribute('data-camera-opens', '2');
   await expect(camera.getByRole('button', { name: 'Capture photo' })).toBeEnabled();
   await page.evaluate(() => window.dispatchEvent(new Event('end-test-camera')));
   await expect(camera).toHaveCount(0);
