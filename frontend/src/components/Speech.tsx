@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Volume2, Square } from 'lucide-react';
 import { languages, type SourceLanguage } from '../api/client';
 
+export type SpeechPart = { text: string; language: SourceLanguage };
+
 export function useSpeech() {
   const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
   const utterance = useRef<SpeechSynthesisUtterance | null>(null);
@@ -22,27 +24,38 @@ export function useSpeech() {
     setError('');
   }
 
-  function play(section: string, text: string, language: SourceLanguage) {
+  function play(section: string, parts: readonly SpeechPart[]) {
     stop();
-    const speech = new SpeechSynthesisUtterance(text);
-    if (language !== 'und') speech.lang = languages[language].voice;
-    utterance.current = speech;
+    if (parts.length === 0) return;
     setCurrent(section);
 
-    function finish(message = '') {
-      if (utterance.current !== speech) return;
-      utterance.current = null;
-      setCurrent(null);
-      setError(message);
+    function speakPart(index: number) {
+      const { text, language } = parts[index];
+      const speech = new SpeechSynthesisUtterance(text);
+      if (language !== 'und') speech.lang = languages[language].voice;
+      utterance.current = speech;
+
+      function finish(message = '') {
+        if (utterance.current !== speech) return;
+        utterance.current = null;
+        setCurrent(null);
+        setError(message);
+      }
+
+      speech.onend = () => {
+        if (utterance.current !== speech) return;
+        if (index + 1 < parts.length) speakPart(index + 1);
+        else finish();
+      };
+      speech.onerror = () => finish('Read-aloud could not play. Check the voices available in your browser.');
+      try {
+        window.speechSynthesis.speak(speech);
+      } catch {
+        finish('Read-aloud could not start in this browser.');
+      }
     }
 
-    speech.onend = () => finish();
-    speech.onerror = () => finish('Read-aloud could not play. Check the voices available in your browser.');
-    try {
-      window.speechSynthesis.speak(speech);
-    } catch {
-      finish('Read-aloud could not start in this browser.');
-    }
+    speakPart(0);
   }
 
   return { supported, current, error, play, stop };
@@ -51,19 +64,18 @@ export function useSpeech() {
 type SpeechButtonProps = {
   speech: ReturnType<typeof useSpeech>;
   section: string;
-  text: string;
-  language: SourceLanguage;
+  parts: readonly SpeechPart[];
 };
 
-export function SpeechButton({ speech, section, text, language }: SpeechButtonProps) {
-  if (!speech.supported || !text) return null;
+export function SpeechButton({ speech, section, parts }: SpeechButtonProps) {
+  if (!speech.supported || parts.length === 0) return null;
   const playing = speech.current === section;
   return (
     <button
       type="button"
       className="button outline"
       aria-label={playing ? 'Stop reading ' + section : 'Listen to ' + section}
-      onClick={playing ? speech.stop : () => speech.play(section, text, language)}
+      onClick={playing ? speech.stop : () => speech.play(section, parts)}
     >
       {playing ? <Square size={17} aria-hidden="true" /> : <Volume2 size={18} aria-hidden="true" />}
       {playing ? 'Stop' : 'Listen'}

@@ -1,32 +1,73 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Bookmark, CalendarDays, ClipboardList, FileText, Image, ShieldAlert } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { ArrowLeft, Bookmark, CalendarDays, ClipboardList, FileText, Image, ShieldAlert, type LucideIcon } from 'lucide-react';
 import { languages, type Analysis, type PrintedSection, type SourceLanguage } from '../api/client';
 import { saveAnalysis } from '../history';
-import { SpeechButton, useSpeech } from './Speech';
+import { SpeechButton, useSpeech, type SpeechPart } from './Speech';
 
-const sectionLabels = {
-  directions: 'Directions',
-  warnings: 'Printed warnings',
-  printed_dates: 'Printed expiration or discard dates',
-} as const;
-const sectionIcons = {
-  directions: ClipboardList,
-  warnings: ShieldAlert,
-  printed_dates: CalendarDays,
-};
-const sectionMessages = {
-  unclear: 'Unclear in this photo. Check the label or retake the photo.',
-  not_found: 'No matching text found in this photo.',
+type LabelSection = {
+  title: string;
+  subject: string;
+  icon?: LucideIcon;
 };
 
-function Excerpts({ section, language }: { section: PrintedSection; language: SourceLanguage }) {
+const labelSections = {
+  medication: { title: 'Medication on label', subject: 'the medication name or strength' },
+  directions: { title: 'Directions', subject: 'the directions', icon: ClipboardList },
+  warnings: { title: 'Printed warnings', subject: 'printed warnings', icon: ShieldAlert },
+  printed_dates: { title: 'Printed expiration or discard dates', subject: 'printed expiration or discard dates', icon: CalendarDays },
+} satisfies Record<string, LabelSection>;
+
+type LabelSectionProps = LabelSection & {
+  section: PrintedSection;
+  language: SourceLanguage;
+  speech: ReturnType<typeof useSpeech>;
+};
+
+function PrintedLabelSection({ title, subject, icon: Icon, section, language, speech }: LabelSectionProps) {
+  const status = section.state === 'unclear'
+    ? `Text for ${subject} is unclear or incomplete in this photo. Check the printed label or retake the photo.`
+    : section.state === 'not_found' ? `No text for ${subject} was found in this photo.` : '';
+  const excerpt = section.excerpts.join('\n');
+  const parts: SpeechPart[] = [];
+  if (status) {
+    parts.push({ text: excerpt ? status + ' Readable text follows.' : status, language: 'en' });
+  }
+  if (excerpt) parts.push({ text: excerpt, language });
+
   return (
-    <>
-      {section.state !== 'found' && <p className="muted">{sectionMessages[section.state]}</p>}
+    <section className="card result-section">
+      <div className="section-header">
+        <h2>{Icon && <Icon size={21} aria-hidden="true" />} {title}</h2>
+        <SpeechButton speech={speech} section={title.toLowerCase()} parts={parts} />
+      </div>
+      {status && <p className="muted">{status}</p>}
       {section.excerpts.map((excerpt, index) => (
         <blockquote key={index} lang={language} dir="auto">{excerpt}</blockquote>
       ))}
-    </>
+    </section>
+  );
+}
+
+function SourcePhoto({ url, alt }: { url: string; alt: string }) {
+  const panelId = useId();
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div>
+      <button
+        type="button"
+        className="button outline"
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        onClick={() => setExpanded(value => !value)}
+      >
+        <Image size={21} aria-hidden="true" /> {expanded ? 'Hide source photo' : 'View source photo'}
+      </button>
+      <div id={panelId} className="card result-section source-photo-panel" hidden={!expanded}>
+        <img className="preview" src={url} alt={alt} />
+        <a className="button outline" href={url} target="_blank" rel="noreferrer">Open full-size photo (new tab)</a>
+      </div>
+    </div>
   );
 }
 
@@ -47,6 +88,8 @@ export function Results({ result, photo, example = false, onBack, saved = false 
   const source = result.source_language;
   const language = result.explanation_language;
   const usable = result.readability === 'readable' || result.readability === 'partial';
+  const canSave = usable && !example && !saved;
+  const uncertainties = result.uncertainties.join('\n');
 
   useEffect(() => { heading.current?.focus(); }, []);
 
@@ -75,15 +118,22 @@ export function Results({ result, photo, example = false, onBack, saved = false 
             ? 'Compare the AI-extracted wording with the printed label before relying on it.'
             : 'Take another photo with the whole medication label in focus and free of glare.'}
         </p>
+        {photo && <SourcePhoto {...photo} />}
+        {saved && <p className="muted">Saved scans contain text only.</p>}
       </div>
       <p className="sr-only" role="status">
         {usable ? 'Label analysis ready.' : 'Analysis complete. A new photo is needed.'}
       </p>
-      <div className="result-layout">
+      <div className={canSave ? 'result-layout' : 'result-stack'}>
         <div className="result-stack">
-          {result.uncertainties.length > 0 && (
+          {(usable || uncertainties) && !speech.supported && <p className="notice">Read-aloud is unavailable in this browser.</p>}
+          {speech.error && <p className="notice" role="alert">{speech.error}</p>}
+          {uncertainties && (
             <section className="notice" aria-labelledby="uncertainties">
-              <h2 id="uncertainties">What may be unclear</h2>
+              <div className="section-header">
+                <h2 id="uncertainties">What may be unclear</h2>
+                <SpeechButton speech={speech} section="what may be unclear" parts={[{ text: uncertainties, language }]} />
+              </div>
               <ul lang={language} dir="auto">
                 {result.uncertainties.map((item, index) => <li key={index}>{item}</li>)}
               </ul>
@@ -91,28 +141,13 @@ export function Results({ result, photo, example = false, onBack, saved = false 
           )}
           {usable && (
             <>
-              <section className="card result-section">
-                <h2>Medication on label</h2>
-                <Excerpts section={result.medication} language={source} />
-              </section>
-              {(Object.keys(sectionLabels) as Array<keyof typeof sectionLabels>).map(key => {
-                const Icon = sectionIcons[key];
-                const title = sectionLabels[key];
-                const section = result[key];
-                return (
-                  <section className="card result-section" key={key}>
-                    <div className="section-header">
-                      <h2><Icon size={21} aria-hidden="true" /> {title}</h2>
-                      <SpeechButton speech={speech} section={title.toLowerCase()} text={section.excerpts.join('\n')} language={source} />
-                    </div>
-                    <Excerpts section={section} language={source} />
-                  </section>
-                );
-              })}
+              {(Object.keys(labelSections) as Array<keyof typeof labelSections>).map(key => (
+                <PrintedLabelSection key={key} {...labelSections[key]} section={result[key]} language={source} speech={speech} />
+              ))}
               <section className="card result-section">
                 <div className="section-header">
                   <h2><FileText size={21} aria-hidden="true" /> Full extracted label</h2>
-                  <SpeechButton speech={speech} section="full extracted label" text={result.extracted_text} language={source} />
+                  <SpeechButton speech={speech} section="full extracted label" parts={[{ text: result.extracted_text, language: source }]} />
                 </div>
                 <p className="transcript" lang={source} dir="auto">{result.extracted_text}</p>
               </section>
@@ -120,7 +155,7 @@ export function Results({ result, photo, example = false, onBack, saved = false 
                 <section className="card explanation result-section">
                   <div className="section-header">
                     <h2>{example ? 'Example explanation' : 'AI explanation'}</h2>
-                    <SpeechButton speech={speech} section="explanation" text={result.explanations[level]} language={language} />
+                    <SpeechButton speech={speech} section="explanation" parts={[{ text: result.explanations[level], language }]} />
                   </div>
                   <div className="explanation-options">
                     <label htmlFor="reading-level">Reading level</label>
@@ -147,17 +182,8 @@ export function Results({ result, photo, example = false, onBack, saved = false 
             </>
           )}
         </div>
-        <aside className="result-stack" aria-label="Photo and scan actions">
-          <section className="card result-section">
-            <h2><Image size={21} aria-hidden="true" /> Source photo</h2>
-            {photo ? (
-              <a className="photo-link" href={photo.url} target="_blank" rel="noreferrer">
-                <img className="preview" src={photo.url} alt={photo.alt} />
-                <span>Open full-size photo (new tab)</span>
-              </a>
-            ) : <p className="muted">Saved scans contain text only.</p>}
-          </section>
-          {usable && !example && !saved && (
+        {canSave && (
+          <aside aria-label="Save options">
             <section className="card result-section">
               <h2>Keep this scan</h2>
               <p className="muted">Save extracted text and explanations on this browser. Anyone using this browser profile can read saved scans.</p>
@@ -167,10 +193,8 @@ export function Results({ result, photo, example = false, onBack, saved = false 
               {saveState === 'saved' && <p role="status">Scan text saved on this browser.</p>}
               {saveState === 'failed' && <p role="alert" className="notice">Scan not saved. {saveError}</p>}
             </section>
-          )}
-          {usable && !speech.supported && <p className="notice">Read-aloud is unavailable in this browser.</p>}
-          {speech.error && <p className="notice" role="alert">{speech.error}</p>}
-        </aside>
+          </aside>
+        )}
       </div>
     </>
   );

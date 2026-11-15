@@ -5,10 +5,10 @@ Use [Pine Sample 5 mg](../frontend/public/fictional-label.png), a clearly marked
 ## Live path
 
 1. Open PresDes and select **Open camera**. Center the training label, wait for the preview to sharpen, and tap **Capture photo**. Compare the still preview to the label.
-2. Select an explanation language and tap **Analyze label**. Compare the extracted directions, printed warning, and **Discard after NOV 30 2027.** against the photograph. Open **Full extracted label** and use the **Source photo** link to inspect the original.
+2. Select an explanation language and tap **Analyze label**. Use **View source photo** below the heading to inspect the original. Compare the extracted directions, printed warning, and **Discard after NOV 30 2027.** against the photograph. The full-size photo opens in a new tab.
 3. Switch the reading level, then select **Listen** beside Directions or the explanation. Open **Display** and enable **Large text** and **High contrast**.
 4. Select **Save text on this browser**, open **Saved scans**, reopen the entry, and delete it before leaving the demo browser.
-5. If time permits, photograph the same training label with a portion obscured and show the uncertainty or retake path. Live extraction and model decisions can vary across requests.
+5. If time permits, photograph the same training label with a portion obscured and show the uncertainty or retake path. Listen to **What may be unclear** and any unclear section. The section audio announces its status before reading available wording. Live extraction and model decisions can vary across requests.
 
 ## Fallback
 

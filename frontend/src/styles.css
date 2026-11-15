@@ -281,8 +281,7 @@ select, input[type="search"] {
 }
 
 .transcript { font-size: 1.08rem; white-space: pre-wrap; }
-.photo-link { display: grid; gap: .5rem; }
-.photo-link span { min-height: 44px; align-content: center; overflow-wrap: anywhere; }
+.source-photo-panel { margin-top: .65rem; }
 .explanation { background: var(--tint); }
 .explanation-options { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem .65rem; }
 .explanation-options select { width: auto; max-width: 100%; }

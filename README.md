@@ -55,8 +55,8 @@ Open [Vite on port 5173](http://localhost:5173). Vite forwards `/api/` to FastAP
 - In-page camera preview and still capture, photo upload, and a device-camera picker fallback.
 - Directions, warnings, printed dates and full extracted text in the label language, with explicit states for unclear lettering, text that could not be found, and unreadable photos.
 - Plain-language and detailed explanations in the selected output language. The reading-level control switches between both versions returned for the current scan.
-- Section-level read-aloud using the browser's available voices, plus large text, dark mode and high contrast.
-- Optional browser-local saving, reopening and deleting of extracted text and explanations. Saved history contains text only. The source photograph is available while viewing the original scan result.
+- Section-level read-aloud using the browser's available voices. It announces unclear or missing text before reading available excerpts. Large text, dark mode and high contrast are available under Display.
+- Optional browser-local saving, reopening and deleting of extracted text and explanations. Saved history contains text only. Use **View source photo** under the original result heading to inspect the image.
 - Individual product label lookup through openFDA, with links to version-specific records.
 
 Potential future work includes user accounts with private synced history, medication tracking and reminders, and source-backed medication-combination research. The prototype's extraction accuracy and assistive-technology behavior still need real-world evaluation.

@@ -26,7 +26,8 @@ Reviewed upstream commit `f41f3a0f1e03663aed531074bd55d813920bf63f` on November 
 | FDA lookup pointed to generic API documentation | The individual-label reference links the version-specific openFDA record ID. Route and browser fixtures cover exact links, empty results and service failure. A live fictional-name search returned an empty result. |
 | Upload read was unbounded and format checks disagreed | Frontend and backend accept JPG, PNG and WebP up to 12 MiB. The API streams with a byte cap and checks image format, dimensions and validity. Tests reject an over-limit stream, mismatched content type, corrupt input and invalid options. |
 | Shared camera input kept its capture hint | Separate ordinary and native-camera pickers reset their file inputs. Replacement and unmount revoke the preview URL. Browser checks cover a synthetic camera stream and denied permission with file fallback. |
-| Read-aloud continued after navigation | Playback cancels when the result leaves view and on reading-level changes. Browser tests check language, errors and navigation cleanup with controlled voices. |
+| Read-aloud continued after navigation or omitted uncertainty | Playback cancels when the result leaves view, the reading level changes, or the user presses Stop. Section audio announces unclear or missing text in English before any verbatim excerpt in its source language. The general uncertainty list is spoken in the explanation language. Browser tests cover the order, language, empty sections, errors and cancellation. |
+| Source photo appeared below the full result on phones | **View source photo** follows the results heading and opens the matching photo inline, with a full-size link. Browser tests cover tab order, expand and collapse, the scan route, matching photo URLs after replacement, and text-only saved results. |
 | Delete failure was unhandled | Saved scan deletion handles browser storage failure visibly. Successful deletion is exercised by Playwright. |
 | OCR highlighting matched common words outside the intended passage | Decorative word boxes and Tesseract were retired. The server validates that each excerpt occurs in the AI transcription. Excerpts and the actual source photo are independently available in the live result. |
 | Bill arithmetic claim exceeded implementation | Bill and lease analysis and their bill-specific checks were retired. Unsupported document options are rejected at the API. |
@@ -40,10 +41,10 @@ Reviewed upstream commit `f41f3a0f1e03663aed531074bd55d813920bf63f` on November 
 | Check | Result |
 | --- | --- |
 | Fresh Python 3.11 virtual environment, `requirements-test.txt`, then `python -m pytest -q` from `backend` | 19 passed. Used an environment outside the OneDrive workspace after package hardlinks failed there. |
-| `npm ci`, `npm run build`, and `npm test` from `frontend` | Clean install, TypeScript and Vite build passed. 10 Chromium tests passed. |
+| `npm ci`, `npm run build`, and `npm test` from `frontend` | Clean install, TypeScript and Vite build passed. 12 Chromium tests passed. |
 | `docker compose -p presdes-verify config --quiet`, build and start, then `nginx -t` | Passed. Checked HTML, asset, manifest and worker responses, liveness, an unavailable-provider upload, the retired medication route, and the live openFDA no-match case using a fictional name. nginx returned 413 for an upload over 12 MiB. Checked HTTP cache directives for HTML, the worker, assets and API responses. |
 | Chromium → Vite preview proxy → Uvicorn/FastAPI → mocked OpenAI SDK | Uploaded the fictional label. The HTTP 200 response rendered the matching photo, excerpts, and the mocked explanation. |
-| Keyboard and emulated mobile | Checked skip link, focus after photo and result transitions, Display dismissal, and reflow at a 320 CSS-pixel viewport with large text. Result excerpts and transcript grow from 17.28 px to 21.6 px. |
+| Keyboard and responsive layout | Checked skip link, focus after photo and result transitions, source-photo keyboard navigation, and Display dismissal. The expanded photo fits at 320, 390, and 1280 CSS pixels with large text in all four palettes. Axe passed at 320 CSS pixels in each palette. Result excerpts and transcript grow from 17.28 px to 21.6 px. |
 
 ### Display ratios
 
