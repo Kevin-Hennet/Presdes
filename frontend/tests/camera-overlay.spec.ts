@@ -1,14 +1,15 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { ScanPage } from './scan-page';
 
-async function simulateCamera(page: Page) {
-  await page.addInitScript(() => {
+async function simulateCamera(page: Page, useNativeStream: boolean) {
+  await page.addInitScript(useNative => {
     const root = () => document.documentElement.dataset;
     const videoSources = new WeakMap<HTMLVideoElement, HTMLCanvasElement>();
-    const nativeStream = typeof HTMLCanvasElement.prototype.captureStream === 'function';
+    const nativeStream = useNative && typeof HTMLCanvasElement.prototype.captureStream === 'function';
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
     if (!navigator.mediaDevices) Object.defineProperty(navigator, 'mediaDevices', { value: {} });
 
-    // Windows WebKit exposes video elements but does not ship MediaStream APIs.
+    // Emulate the same camera frames in WebKit without relying on host media services.
     if (!nativeStream) {
       Object.defineProperty(HTMLVideoElement.prototype, 'srcObject', {
         configurable: true,
@@ -72,7 +73,7 @@ async function simulateCamera(page: Page) {
       const mockedFrame = video instanceof HTMLVideoElement ? videoSources.get(video) : undefined;
       Reflect.apply(draw, this, mockedFrame ? [mockedFrame, ...args.slice(1)] : args);
     };
-  });
+  }, useNativeStream);
 }
 
 async function insideViewport(locator: Locator, page: Page) {
@@ -109,8 +110,8 @@ async function assertCaptureCrop(page: Page, preview: Locator) {
   expect(x > 0 || y > 0).toBe(true);
 }
 
-test('keeps a full-screen preview and bottom thumbnails through capture, review, retake, remove and reopen', async ({ page }) => {
-  await simulateCamera(page);
+test('keeps a full-screen preview and bottom thumbnails through capture, review, retake, remove and reopen', async ({ page, browserName }) => {
+  await simulateCamera(page, browserName === 'chromium');
   await page.setViewportSize({ width: 390, height: 780 });
   const scan = new ScanPage(page);
   await scan.open();
@@ -182,8 +183,8 @@ test('keeps a full-screen preview and bottom thumbnails through capture, review,
   await expect(page.locator('html')).toHaveAttribute('data-camera-stops', '2');
 });
 
-test('contains keyboard focus, locks page scroll and releases the camera on Escape or interruption', async ({ page }) => {
-  await simulateCamera(page);
+test('contains keyboard focus, locks page scroll and releases the camera on Escape or interruption', async ({ page, browserName }) => {
+  await simulateCamera(page, browserName === 'chromium');
   await page.setViewportSize({ width: 320, height: 665 });
   const scan = new ScanPage(page);
   await scan.open();
@@ -216,8 +217,8 @@ test('contains keyboard focus, locks page scroll and releases the camera on Esca
   await expect(page.getByRole('button', { name: 'Analyze label' })).toBeEnabled();
 });
 
-test('backgrounding closes the camera and keeps selected photos available', async ({ page }) => {
-  await simulateCamera(page);
+test('backgrounding closes the camera and keeps selected photos available', async ({ page, browserName }) => {
+  await simulateCamera(page, browserName === 'chromium');
   const scan = new ScanPage(page);
   await scan.open();
   await scan.choosePhoto();

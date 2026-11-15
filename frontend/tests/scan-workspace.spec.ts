@@ -191,9 +191,13 @@ test('a reload during analysis restores the photos and waits for an explicit ret
   await scan.choosePhoto();
   await scan.analyze();
   await expect.poll(() => analyses).toBe(1);
-  await page.reload();
-  release();
-  await expect(page.getByText(/Analysis was interrupted/)).toBeVisible();
+  await expect.poll(async () => (await storedWorkspace(page))?.analyzing).toBe(true);
+  try {
+    await page.reload();
+    await expect(page.getByText(/Analysis was interrupted/)).toBeVisible();
+  } finally {
+    release();
+  }
   await expect(page.getByRole('heading', { name: 'Review your photo', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Analyze label', exact: true })).toBeEnabled();
   expect(analyses).toBe(1);
@@ -233,9 +237,13 @@ test('reuses completed HEIC previews and retains pending originals after an inte
     { name: 'side.heic', mimeType: 'image/heic', buffer: second },
   ]);
   await expect.poll(() => previews).toBe(2);
-  await page.reload();
-  release();
-  await expect(page.getByText(/Photo preparation was interrupted/)).toBeVisible();
+  await expect.poll(async () => (await storedWorkspace(page))?.pendingPhotos?.photos.length).toBe(2);
+  try {
+    await page.reload();
+    await expect(page.getByText(/Photo preparation was interrupted/)).toBeVisible();
+  } finally {
+    release();
+  }
   await expect(page.getByRole('heading', { name: 'Review your photo', exact: true })).toBeVisible();
   expect(previews).toBe(2);
   await page.getByRole('button', { name: 'Retry photo preview', exact: true }).click();
