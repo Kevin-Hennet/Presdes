@@ -4,8 +4,8 @@ Use [Pine Sample 5 mg](../frontend/public/fictional-label.png), a clearly marked
 
 ## Live path
 
-1. Open PresDes and select **Open camera**. Center the training label, wait for the preview to sharpen, and tap **Capture photo**. Compare the still preview to the label.
-2. Select an explanation language and tap **Analyze label**. Use **View source photo** below the heading to inspect the original. Compare the extracted directions, printed warning, and **Discard after NOV 30 2027.** against the photograph. The full-size photo opens in a new tab.
+1. Open PresDes and select **Open camera**. Center part of the training label and tap **Capture photo**. Rotate the same bottle, keep some of the previous text in view, and capture the rest. Tap **Done with camera** to review or retake a view. A flat label that fits the frame can be scanned with one photo.
+2. Select an explanation language and tap **Analyze label**. Choose **View source photos** below the heading to inspect the originals. Compare the extracted directions, printed warning, and **Discard after NOV 30 2027.** against the photos. Each full-size link opens in a new tab.
 3. Switch the reading level, then select **Listen** beside Directions or the explanation. Open **Display** and enable **Large text** and **High contrast**.
 4. Select **Save text to MongoDB** and wait for confirmation. Open **Saved scans → MongoDB**, reopen the entry, then return to the list and delete it. **This browser** shows browser-local saves.
 5. If time permits, photograph the same training label with a portion obscured and show the uncertainty or retake path. Listen to **What may be unclear** and any unclear section. The section audio announces its status before reading available wording. Live extraction and model decisions can vary across requests.

@@ -28,7 +28,7 @@ Connect a MongoDB database using the local setup script. The prompt masks the UR
 
 Enter the cluster's connection URI in the masked prompt, then restart PresDes. For Atlas, use a database user that can read, write and create indexes in the dedicated database and authorize the app host through the project's IP access list. The default database is `presdes` and the collection is `presdes_private_saved_scans_v1`. Set `MONGODB_DATABASE` in `backend/.env` to select a different database. Keep the session secret stable across restarts. [Atlas connection setup](https://www.mongodb.com/docs/atlas/connect-to-database-deployment/)
 
-**Save text to MongoDB** stores the extracted text and explanations using a signed browser session. **Saved scans → MongoDB** lists and reopens that session's records. Browser-local saves remain available under **This browser**. There is no automatic transfer from browser storage. MongoDB history follows the session cookie and does not automatically sync across browser profiles, devices, or hostnames. Clearing the cookie or letting it expire can make the records inaccessible. The photo stays in the active result.
+**Save text to MongoDB** stores the extracted text and explanations using a signed browser session. **Saved scans → MongoDB** lists and reopens that session's records. Browser-local saves remain available under **This browser**. There is no automatic transfer from browser storage. MongoDB history follows the session cookie and does not automatically sync across browser profiles, devices, or hostnames. Clearing the cookie or letting it expire can make the records inaccessible. Source photos stay in the active result.
 
 ### Development
 
@@ -64,24 +64,24 @@ Open [Vite on port 5173](http://localhost:5173). Vite forwards `/api/` to FastAP
 
 ## What the prototype includes
 
-- In-page camera preview and still capture, photo upload, and a device-camera picker fallback.
+- In-page camera preview with successive captures, multi-file upload, and a device-camera picker fallback. Review, remove, or retake up to four overlapping views of one bottle before analyzing.
 - Directions, warnings, printed dates and full extracted text in the label language, with explicit states for unclear lettering, text that could not be found, and unreadable photos.
 - Plain-language and detailed explanations in the selected output language. The reading-level control switches between both versions returned for the current scan.
 - Section-level read-aloud using the browser's available voices. It announces unclear or missing text before reading available excerpts. Large text, dark mode and high contrast are available under Display.
-- Optional MongoDB and browser-local saving, reopening and deleting of extracted text and explanations. Saved history contains text only. Use **View source photo** under the original result heading to inspect the image.
+- Optional MongoDB and browser-local saving, reopening and deleting of extracted text and explanations. Saved history contains text only. Use **View source photo** or **View source photos** below the result heading to inspect the originals.
 - Individual product label lookup through openFDA, with links to version-specific records.
 
 Potential future work includes user accounts with private synced history, medication tracking and reminders, and source-backed medication-combination research. The prototype's extraction accuracy and assistive-technology behavior still need real-world evaluation.
 
 ## Data and limits
 
-The analysis request sends a photo to the API. The API validates the photo and re-encodes it as a JPEG, stripping camera metadata before forwarding it to OpenAI with response storage disabled. Provider data handling depends on the project's OpenAI settings. Use fictional or de-identified labels for trials. Press a save button to store the result explicitly. Each save option retains text only, and a storage error leaves the analysis available. Anyone using your browser profile can access that profile's saved scans. [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data)
+The API validates each selected photo and re-encodes it as a JPEG, stripping camera metadata. It sends all selected views in one OpenAI request with response storage disabled. Provider data handling depends on the project's OpenAI settings. Use fictional or de-identified labels for trials. Press a save button to store the result explicitly. Each save option retains text only, and a storage error leaves the analysis available. Anyone using your browser profile can access that profile's saved scans. [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data)
 
-One static JPG, PNG or WebP image is accepted per scan, up to 12 MiB and 24 megapixels. If a device produces HEIC, export it as a JPG first. The app uses browser camera permissions on loopback or HTTPS and uses the installed browser voices for speech.
+Each scan accepts one to four still JPG, PNG or WebP images, up to 12 MiB and 24 megapixels per photo and 24 MiB total. Rotate the same bottle, with some printed text visible in neighboring views. The model attempts to merge overlaps, flags conflicting readings, and asks for separate scans when the photos clearly show different labels. Compare the result with the source photos, especially when views are hard to match. If a device produces HEIC, export it as a JPG first. The app uses browser camera permissions on loopback or HTTPS and uses the installed browser voices for speech.
 
 ## Serving the app and accessing it from a phone
 
-Uvicorn serves the production Vite build and `/api/` on the same loopback origin. For the in-page camera on a physical phone, use an HTTPS address the phone can reach with a certificate it trusts. Forward HTTPS traffic to `127.0.0.1:8080` and preserve the public Host and forwarded HTTPS scheme so the API can verify the request origin and set a Secure cookie. Allow 12 MiB uploads and at least 75 seconds for an API response. The API's OpenAI deadline is 60 seconds.
+Uvicorn serves the production Vite build and `/api/` on the same loopback origin. For the in-page camera on a physical phone, use an HTTPS address the phone can reach with a certificate it trusts. Forward HTTPS traffic to `127.0.0.1:8080` and preserve the public Host and forwarded HTTPS scheme so the API can verify the request origin and set a Secure cookie. Allow 24 MiB of images plus multipart request headers and at least 75 seconds for an API response. The API's OpenAI deadline is 60 seconds.
 
 HTML and the service-worker script revalidate. Vite's content-hashed assets are immutable. The replacement worker retires the legacy LabelLens cache and leaves requests to normal browser networking. Reload an already open legacy tab after the replacement worker activates.
 
@@ -90,7 +90,7 @@ HTML and the service-worker script revalidate. Vite's content-hashed assets are 
 | Method and path | Behavior |
 | --- | --- |
 | `GET /api/health` | Liveness and configuration presence for OpenAI and MongoDB. Provider and database connectivity are checked by performing their respective operations. |
-| `POST /api/scans?language=en` | Send raw image bytes with the matching image `Content-Type`. Returns the typed result, including readability, source language, excerpts, full extraction, both explanation levels when available, uncertainty, and scan ID and timestamp. |
+| `POST /api/scans?language=en` | Send raw image bytes with the matching image `Content-Type` for one photo, or `multipart/form-data` with one to four repeated file fields named `files`. Returns one typed result. The `mismatched_labels` state asks for separate scans and includes no combined transcription or explanations. |
 | `GET /api/labels?name=…` | Up to five individual openFDA label records. An empty result means no matching records. Upstream failures return HTTP 502. |
 | `POST /api/saved-scans/session` | Issues the signed, HttpOnly history cookie for an explicit save. |
 | `GET /api/saved-scans?limit=20` | Lists up to 50 summaries owned by the session. Pass `next_before` back as the `before` query parameter to get the next page. |

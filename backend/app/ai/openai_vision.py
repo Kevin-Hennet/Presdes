@@ -18,12 +18,11 @@ class AnalysisError(Exception):
         self.detail = detail
 
 
-async def analyze_image(image: bytes, language: Language) -> LabelAnalysis:
+async def analyze_image(images: list[bytes], language: Language) -> LabelAnalysis:
     api_key = settings.openai_api_key.get_secret_value()
     if not api_key:
         raise AnalysisError(503, "Live analysis is unavailable. Try the fictional example or contact the site operator.")
 
-    encoded = base64.b64encode(image).decode("ascii")
     try:
         async with asyncio.timeout(PROVIDER_TIMEOUT_SECONDS):
             async with AsyncOpenAI(api_key=api_key, timeout=PROVIDER_TIMEOUT_SECONDS, max_retries=0) as client:
@@ -33,8 +32,15 @@ async def analyze_image(image: bytes, language: Language) -> LabelAnalysis:
                     input=[{
                         "role": "user",
                         "content": [
-                            {"type": "input_text", "text": analysis_prompt(language)},
-                            {"type": "input_image", "image_url": f"data:image/jpeg;base64,{encoded}", "detail": "high"},
+                            {"type": "input_text", "text": analysis_prompt(language, len(images))},
+                            *[
+                                {
+                                    "type": "input_image",
+                                    "image_url": "data:image/jpeg;base64," + base64.b64encode(image).decode("ascii"),
+                                    "detail": "high",
+                                }
+                                for image in images
+                            ],
                         ],
                     }],
                     text={"format": {

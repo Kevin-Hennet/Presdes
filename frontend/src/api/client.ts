@@ -19,7 +19,7 @@ export type PrintedSection = {
 export type Analysis = {
   id: string;
   created_at: string;
-  readability: 'readable' | 'partial' | 'unreadable' | 'not_medication_label';
+  readability: 'readable' | 'partial' | 'unreadable' | 'not_medication_label' | 'mismatched_labels';
   source_language: SourceLanguage;
   explanation_language: Language;
   extracted_text: string;
@@ -73,11 +73,21 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   return data as T;
 }
 
-export function analyze(file: File, language: Language, signal: AbortSignal) {
+export function analyze(files: readonly File[], language: Language, signal: AbortSignal) {
+  if (files.length === 1) {
+    const file = files[0];
+    return request<Analysis>('/api/scans?' + new URLSearchParams({ language }), {
+      method: 'POST',
+      headers: { 'Content-Type': file.type },
+      body: file,
+      signal,
+    });
+  }
+  const body = new FormData();
+  for (const file of files) body.append('files', file);
   return request<Analysis>('/api/scans?' + new URLSearchParams({ language }), {
     method: 'POST',
-    headers: { 'Content-Type': file.type },
-    body: file,
+    body,
     signal,
   });
 }

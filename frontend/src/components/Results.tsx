@@ -21,12 +21,13 @@ type LabelSectionProps = LabelSection & {
   section: PrintedSection;
   language: SourceLanguage;
   speech: ReturnType<typeof useSpeech>;
+  evidence: string;
 };
 
-function PrintedLabelSection({ title, subject, icon: Icon, section, language, speech }: LabelSectionProps) {
+function PrintedLabelSection({ title, subject, icon: Icon, section, language, speech, evidence }: LabelSectionProps) {
   const status = section.state === 'unclear'
-    ? `Text for ${subject} is unclear or incomplete in this photo. Check the printed label or retake the photo.`
-    : section.state === 'not_found' ? `No text for ${subject} was found in this photo.` : '';
+    ? `Text for ${subject} is unclear or incomplete in ${evidence}. Check the printed label or retake the photo.`
+    : section.state === 'not_found' ? `No text for ${subject} was found in ${evidence}.` : '';
   const excerpt = section.excerpts.join('\n');
   const parts: SpeechPart[] = [];
   if (status) {
@@ -48,9 +49,12 @@ function PrintedLabelSection({ title, subject, icon: Icon, section, language, sp
   );
 }
 
-function SourcePhoto({ url, alt }: { url: string; alt: string }) {
+export type SourcePhoto = { url: string; alt: string };
+
+function SourcePhotos({ photos }: { photos: SourcePhoto[] }) {
   const panelId = useId();
   const [expanded, setExpanded] = useState(false);
+  const multiple = photos.length > 1;
 
   return (
     <div>
@@ -61,25 +65,32 @@ function SourcePhoto({ url, alt }: { url: string; alt: string }) {
         aria-controls={panelId}
         onClick={() => setExpanded(value => !value)}
       >
-        <Image size={21} aria-hidden="true" /> {expanded ? 'Hide source photo' : 'View source photo'}
+        <Image size={21} aria-hidden="true" /> {expanded ? 'Hide' : 'View'} source {multiple ? 'photos' : 'photo'}
       </button>
-      <div id={panelId} className="card result-section source-photo-panel" hidden={!expanded}>
-        <img className="preview" src={url} alt={alt} />
-        <a className="button outline" href={url} target="_blank" rel="noreferrer">Open full-size photo (new tab)</a>
-      </div>
+      <ul id={panelId} className="card scan-photos source-photo-panel" hidden={!expanded}>
+        {photos.map(({ url, alt }, index) => (
+          <li className="scan-photo" key={url}>
+            <img className="preview" src={url} alt={alt} />
+            <a className="button outline" href={url} target="_blank" rel="noreferrer">
+              {multiple ? `Open full-size photo ${index + 1} (new tab)` : 'Open full-size photo (new tab)'}
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
 type ResultsProps = {
   result: Analysis;
-  photo?: { url: string; alt: string };
+  photos?: SourcePhoto[];
   example?: boolean;
   onBack: () => void;
+  onReviewPhotos?: () => void;
   saved?: 'browser' | 'mongodb';
 };
 
-export function Results({ result, photo, example = false, onBack, saved }: ResultsProps) {
+export function Results({ result, photos, example = false, onBack, onReviewPhotos, saved }: ResultsProps) {
   const heading = useRef<HTMLHeadingElement>(null);
   const pendingMongoSave = useRef<AbortController | null>(null);
   const speech = useSpeech();
@@ -92,6 +103,8 @@ export function Results({ result, photo, example = false, onBack, saved }: Resul
   const source = result.source_language;
   const language = result.explanation_language;
   const usable = result.readability === 'readable' || result.readability === 'partial';
+  const mismatch = result.readability === 'mismatched_labels';
+  const evidence = photos ? (photos.length > 1 ? 'these photos' : 'this photo') : 'the scan';
   const canSave = usable && !saved;
   const uncertainties = result.uncertainties.join('\n');
 
@@ -130,25 +143,29 @@ export function Results({ result, photo, example = false, onBack, saved }: Resul
   return (
     <>
       <button type="button" className="button plain back" onClick={onBack}>
-        <ArrowLeft size={19} aria-hidden="true" /> {saved ? 'Back to saved scans' : 'New photo'}
+        <ArrowLeft size={19} aria-hidden="true" /> {saved ? 'Back to saved scans' : photos && photos.length > 1 ? 'New scan' : 'New photo'}
       </button>
       <div className="page-intro">
         <p className="eyebrow">{example ? 'Fictional example · prepared result' : saved ? 'Saved scan' : 'Scan result'}</p>
         <h1 ref={heading} tabIndex={-1}>
-          {usable ? 'Read your label' : result.readability === 'unreadable' ? 'This label is unreadable' : 'Medication label needed'}
+          {usable ? 'Read your label' : mismatch ? 'Scan one bottle at a time'
+            : result.readability === 'unreadable' ? 'This label is unreadable' : 'Medication label needed'}
         </h1>
         <p className="lede">
           {usable
             ? 'Compare the AI-extracted wording with the printed label before relying on it.'
-            : 'Take another photo with the whole medication label in focus and free of glare.'}
+            : mismatch
+              ? 'These photos appear to show different bottles or labels. Review the photos and scan each bottle separately.'
+              : 'Take another photo with the medication label in focus and free of glare.'}
         </p>
-        {photo && <SourcePhoto {...photo} />}
+        {mismatch && onReviewPhotos && <button className="button primary" type="button" onClick={onReviewPhotos}>Review photos</button>}
+        {photos?.length ? <SourcePhotos photos={photos} /> : null}
         {saved && <p className="muted">
           Saved scans contain text only. {saved === 'mongodb' ? 'Stored in MongoDB for this browser session.' : 'Stored on this browser.'}
         </p>}
       </div>
       <p className="sr-only" role="status">
-        {usable ? 'Label analysis ready.' : 'Analysis complete. A new photo is needed.'}
+        {usable ? 'Label analysis ready.' : mismatch ? 'Analysis complete. Scan each bottle separately.' : 'Analysis complete. A new photo is needed.'}
       </p>
       <div className={canSave ? 'result-layout' : 'result-stack'}>
         <div className="result-stack">
@@ -168,7 +185,7 @@ export function Results({ result, photo, example = false, onBack, saved }: Resul
           {usable && (
             <>
               {(Object.keys(labelSections) as Array<keyof typeof labelSections>).map(key => (
-                <PrintedLabelSection key={key} {...labelSections[key]} section={result[key]} language={source} speech={speech} />
+                <PrintedLabelSection key={key} {...labelSections[key]} section={result[key]} language={source} speech={speech} evidence={evidence} />
               ))}
               <section className="card result-section">
                 <div className="section-header">
@@ -212,7 +229,7 @@ export function Results({ result, photo, example = false, onBack, saved }: Resul
           <aside aria-label="Save options">
             <section className="card result-section">
               <h2>Keep this scan</h2>
-              <p className="muted">Save extracted text and explanations. The photo stays with the current result.</p>
+              <p className="muted">Save extracted text and explanations. Source photos stay with the current result.</p>
               {!example && (
                 <>
                   <button type="button" className="button outline" disabled={saveState === 'saved'} onClick={save}>

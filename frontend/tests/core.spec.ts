@@ -99,6 +99,7 @@ test('invalidates responses from a photo replaced during analysis', async ({ pag
   await expect(page.locator('html')).toHaveAttribute('data-first-scan-started', 'true');
   await expect(page.getByRole('button', { name: 'Analyzing…' })).toBeDisabled();
   const firstPhoto = await page.getByRole('img', { name: 'Medication label photo selected for analysis' }).getAttribute('src');
+  await page.getByRole('button', { name: 'Retake photo 1' }).click();
   await page.getByLabel('Photo file', { exact: true }).setInputFiles({ name: 'new-label.png', mimeType: 'image/png', buffer: bytes });
   await expect(page.locator('html')).toHaveAttribute('data-first-scan-aborted', 'true');
   await expect(page.getByText('new-label.png')).toBeVisible();
@@ -154,7 +155,7 @@ test('offers a file fallback when camera permission is denied', async ({ page })
   await expect(page.getByRole('heading', { name: 'Review your photo' })).toBeVisible();
 });
 
-test('captures a camera frame and stops the active video track', async ({ page, context }) => {
+test('captures successive camera views and stops the video track when done', async ({ page, context }) => {
   await context.grantPermissions(['camera']);
   await page.addInitScript(() => {
     const stop = MediaStreamTrack.prototype.stop;
@@ -169,8 +170,14 @@ test('captures a camera frame and stops the active video track', async ({ page, 
   await expect(page.getByLabel('Live camera preview')).toBeVisible();
   await page.getByRole('button', { name: 'Capture photo' }).click();
   await expect(page.getByRole('heading', { name: 'Review your photo' })).toBeVisible();
-  await expect(page.getByText('captured-label.jpg')).toBeVisible();
+  await expect(page.getByText('captured-label-1.jpg', { exact: false })).toBeVisible();
+  await expect(page.getByLabel('Live camera preview')).toBeVisible();
+  await page.getByRole('button', { name: 'Capture photo' }).click();
+  await expect(page.getByText('captured-label-2.jpg', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Remove photo 2' })).toBeVisible();
+  await page.getByRole('button', { name: 'Done with camera' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-track-stopped', 'true');
+  await expect(page.getByRole('heading', { name: 'Review your photos' })).toBeFocused();
 });
 
 test('speaks the selected result language, handles errors and cancels on navigation', async ({ page }) => {

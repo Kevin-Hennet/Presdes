@@ -25,6 +25,7 @@ Reviewed upstream commit `f41f3a0f1e03663aed531074bd55d813920bf63f` on November 
 | --- | --- |
 | FDA lookup pointed to generic API documentation | The individual-label reference links the version-specific openFDA record ID. Route and browser fixtures cover exact links, empty results and service failure. A live fictional-name search returned an empty result. |
 | Upload read was unbounded and format checks disagreed | Frontend and backend accept JPG, PNG and WebP up to 12 MiB. The API streams with a byte cap and checks image format, dimensions and validity. Tests reject an over-limit stream, mismatched content type, corrupt input and invalid options. |
+| One photo could miss text on a round bottle | Successive camera captures and multi-file upload support one to four overlapping views. The API bounds the multipart stream, validates every image and sends them in one OpenAI request. Tests cover count and size limits, individual validation, removal, replacement, phone-width source access and the separate-scan state for mismatched labels. |
 | Shared camera input kept its capture hint | Separate ordinary and native-camera pickers reset their file inputs. Replacement and unmount revoke the preview URL. Browser checks cover a synthetic camera stream and denied permission with file fallback. |
 | Read-aloud continued after navigation or omitted uncertainty | Playback cancels when the result leaves view, the reading level changes, or the user presses Stop. Section audio announces unclear or missing text in English before any verbatim excerpt in its source language. The general uncertainty list is spoken in the explanation language. Browser tests cover the order, language, empty sections, errors and cancellation. |
 | Source photo appeared below the full result on phones | **View source photo** follows the results heading and opens the matching photo inline, with a full-size link. Browser tests cover tab order, expand and collapse, the scan route, matching photo URLs after replacement, and text-only saved results. |
@@ -40,11 +41,12 @@ Reviewed upstream commit `f41f3a0f1e03663aed531074bd55d813920bf63f` on November 
 
 | Check | Result |
 | --- | --- |
-| Python 3.11, `requirements-test.txt`, then `python -m pytest -q` from `backend` | 24 passed. The saved-scan tests use a controlled collection to exercise the API and query filters, including idempotency, session isolation, CSRF, malformed input, pagination and outage recovery. |
-| `npm run build` and `npm test` from `frontend` | TypeScript and Vite build passed. 14 Chromium tests passed, including the uncertainty audio and source-photo regressions. Browser API fixtures cover saved-scan interactions and local-history preservation. |
+| Python 3.11, `requirements-test.txt`, then `python -m pytest -q` from `backend` | 29 passed, including raw and multipart uploads. The saved-scan tests use a controlled collection to exercise the API and query filters, including idempotency, session isolation, CSRF, malformed input, pagination and outage recovery. |
+| `npm run build` and `npm test` from `frontend` | TypeScript and Vite build passed. 17 Chromium tests passed, including the uncertainty audio and source-photo regressions. Browser API fixtures cover saved-scan interactions and local-history preservation. |
 | Native Windows startup using `scripts/start.ps1` | Passed with Uvicorn serving the built frontend and API. The test instance ran on port 8081. After checking it, the two PresDes containers were stopped and the direct app took over the original port 8080. |
 | Real MongoDB Community 8.0.20 on Windows | Bound a temporary database to loopback and used a dedicated verification database. With direct Uvicorn, the browser saved the prepared fictional label, reopened and deleted it. A retry returned one unchanged record. A second browser session received 404 for the first session's detail and delete routes, and a cross-origin delete was rejected. The verification record was removed. |
 | Chromium → Vite preview proxy → Uvicorn/FastAPI → mocked OpenAI SDK | Uploaded the fictional label. The HTTP 200 response rendered the matching photo, excerpts, and the mocked explanation. |
+| Live OpenAI multi-photo scan | Two overlapping crops of the fictional Pine Sample label returned one transcription with the name, discard date and a single copy of the overlapping directions. A Pine Sample view paired with a clearly different fictional label returned `mismatched_labels` with empty transcription and explanations. |
 | Keyboard and responsive layout | Checked skip link, focus after photo and result transitions, source-photo keyboard navigation, and Display dismissal. The expanded photo fits at 320, 390, and 1280 CSS pixels with large text in all four palettes. Axe passed at 320 CSS pixels in each palette. Result excerpts and transcript grow from 17.28 px to 21.6 px. |
 
 ### Display ratios
@@ -61,6 +63,6 @@ Calculated from the CSS colors. Body text, secondary text and primary button tex
 ### Pending external checks
 
 - Atlas needs the project's connection URI. The real database round-trip used MongoDB Community on this computer. Use the masked local setup script described in the [README](../README.md) to connect Atlas.
-- A live OpenAI analysis needs a configured project key with model access. The provider and browser fixtures exercise structure and presentation. Extraction accuracy against real photographs remains unverified.
+- The OpenAI checks used fictional labels. Extraction accuracy against real photographs remains unverified.
 - A physical-phone rehearsal, native camera picker, VoiceOver or TalkBack, and audible playback on the presentation equipment require that device and setup. Follow the [demo checklist](demo.md).
 - The GitHub Actions workflow awaits a run on GitHub. Its install, build, and test commands were exercised locally.

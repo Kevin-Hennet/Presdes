@@ -1,15 +1,82 @@
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
+from starlette.datastructures import UploadFile
+from starlette.formparsers import MultiPartException, MultiPartParser
 
 from app.ai.openai_vision import AnalysisError, analyze_image
 from app.models.schemas import ScanOptions, ScanResult
 from app.services.images import FORMATS, MAX_UPLOAD_BYTES, InvalidImage, prepare_image
 
 router = APIRouter(prefix="/api/scans", tags=["scans"])
+
+MAX_PHOTOS = 4
+MAX_BATCH_BYTES = 24 * 1024 * 1024
+MULTIPART_OVERHEAD_BYTES = 64 * 1024
+
+
+def media_type(header: str | None) -> str:
+    return (header or "").split(";", 1)[0].strip().lower()
+
+
+async def bounded_body(request: Request, limit: int, message: str) -> AsyncIterator[bytes]:
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > limit:
+            raise HTTPException(413, message)
+        yield chunk
+
+
+async def validate_image(raw: bytes, mime: str, subject: str) -> bytes:
+    if mime not in FORMATS:
+        raise HTTPException(415, f"{subject} must be JPG, PNG, or WebP.")
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"{subject} exceeds 12 MB. Choose a smaller photo.")
+    try:
+        return await run_in_threadpool(prepare_image, raw, mime)
+    except InvalidImage as exc:
+        raise HTTPException(422, f"{subject}. {exc}") from exc
+
+
+async def read_photos(request: Request) -> list[bytes]:
+    mime = media_type(request.headers.get("content-type"))
+    if mime != "multipart/form-data":
+        if mime not in FORMATS:
+            raise HTTPException(415, "Upload a JPG, PNG, or WebP photo.")
+        raw = bytearray()
+        async for chunk in bounded_body(request, MAX_UPLOAD_BYTES, "The photo exceeds 12 MB. Choose a smaller photo."):
+            raw.extend(chunk)
+        return [await validate_image(bytes(raw), mime, "The photo")]
+
+    batch_error = "The photos exceed 24 MB total. Remove a photo or choose smaller files."
+    body = bounded_body(request, MAX_BATCH_BYTES + MULTIPART_OVERHEAD_BYTES, batch_error)
+    parser = MultiPartParser(request.headers, body, max_files=MAX_PHOTOS, max_fields=0)
+    try:
+        form = await parser.parse()
+    except MultiPartException as exc:
+        if "Too many files" in exc.message:
+            raise HTTPException(413, "Choose up to four photos of the same label.") from exc
+        raise HTTPException(422, "Upload photos in multipart fields named files.") from exc
+    try:
+        uploads = form.multi_items()
+        if not uploads or any(name != "files" or not isinstance(file, UploadFile) for name, file in uploads):
+            raise HTTPException(422, "Upload one to four photos in multipart fields named files.")
+        images = []
+        total = 0
+        for number, (_, file) in enumerate(uploads, 1):
+            raw = await file.read(MAX_UPLOAD_BYTES + 1)
+            total += len(raw)
+            if total > MAX_BATCH_BYTES:
+                raise HTTPException(413, batch_error)
+            images.append(await validate_image(raw, media_type(file.content_type), f"Photo {number}"))
+        return images
+    finally:
+        await form.close()
 
 
 @router.post("", response_model=ScanResult)
@@ -18,22 +85,10 @@ async def create_scan(
     response: Response,
     options: Annotated[ScanOptions, Query()],
 ) -> ScanResult:
-    """Analyze raw bytes from a single JPG, PNG, or WebP medication-label photo."""
-    mime_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-    if mime_type not in FORMATS:
-        raise HTTPException(415, "Upload a JPG, PNG, or WebP photo.")
-
-    raw = bytearray()
-    async for chunk in request.stream():
-        if len(raw) + len(chunk) > MAX_UPLOAD_BYTES:
-            raise HTTPException(413, "The photo exceeds 12 MB. Choose a smaller photo.")
-        raw.extend(chunk)
-
+    """Analyze one raw image or up to four multipart views of one medication label."""
+    images = await read_photos(request)
     try:
-        image = await run_in_threadpool(prepare_image, bytes(raw), mime_type)
-        result = await analyze_image(image, options.language)
-    except InvalidImage as exc:
-        raise HTTPException(422, str(exc)) from exc
+        result = await analyze_image(images, options.language)
     except AnalysisError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
 

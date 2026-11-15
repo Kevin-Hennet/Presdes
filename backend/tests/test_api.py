@@ -93,6 +93,70 @@ async def test_scan_contract(client, photo, label, provider):
     assert request["input"][0]["content"][1]["image_url"].startswith("data:image/jpeg;base64,")
 
 
+async def test_multipart_views_share_one_analysis_request(client, photo, provider):
+    second = BytesIO()
+    Image.new("RGB", (30, 20), "navy").save(second, "PNG")
+    raw_views = [photo, second.getvalue()]
+    response = await client.post("/api/scans?language=fr", files=[
+        ("files", (f"view-{number}.png", data, "image/png")) for number, data in enumerate(raw_views)
+    ])
+    assert response.status_code == 200, response.text
+    provider.assert_awaited_once()
+    request = provider.await_args.kwargs
+    content = request["input"][0]["content"]
+    assert "Analyze 2 photo(s)" in content[0]["text"]
+    assert "French" in content[0]["text"]
+    assert [part["type"] for part in content[1:]] == ["input_image", "input_image"]
+    assert content[1]["image_url"] != content[2]["image_url"]
+    assert request["store"] is False
+
+
+async def test_batch_validation_rejects_each_bad_photo_and_count(client, photo, provider):
+    valid = ("files", ("view.png", photo, "image/png"))
+    assert (await client.post("/api/scans", files=[valid] * 5)).status_code == 413
+    unsupported = await client.post("/api/scans", files=[valid, ("files", ("other.gif", photo, "image/gif"))])
+    assert unsupported.status_code == 415
+    assert "Photo 2" in unsupported.json()["detail"]
+    broken = await client.post("/api/scans", files=[valid, ("files", ("other.png", b"corrupt", "image/png"))])
+    assert broken.status_code == 422
+    assert "Photo 2" in broken.json()["detail"]
+    assert (await client.post("/api/scans", files=[("unexpected", valid[1])])).status_code == 422
+    provider.assert_not_awaited()
+
+
+async def test_batch_enforces_per_photo_and_aggregate_limits(client, photo, provider, monkeypatch):
+    valid = ("files", ("view.png", photo, "image/png"))
+    monkeypatch.setattr(scan, "MAX_UPLOAD_BYTES", len(photo) - 1)
+    size = await client.post("/api/scans", files=[valid])
+    assert size.status_code == 413
+    assert "Photo 1 exceeds" in size.json()["detail"]
+
+    monkeypatch.setattr(scan, "MAX_UPLOAD_BYTES", len(photo))
+    monkeypatch.setattr(scan, "MAX_BATCH_BYTES", 2 * len(photo) - 1)
+    size = await client.post("/api/scans", files=[valid, valid])
+    assert size.status_code == 413
+    assert "total" in size.json()["detail"]
+    provider.assert_not_awaited()
+
+
+async def test_multipart_stream_stops_when_request_exceeds_limit(client, provider, monkeypatch):
+    monkeypatch.setattr(scan, "MAX_BATCH_BYTES", 10)
+    monkeypatch.setattr(scan, "MULTIPART_OVERHEAD_BYTES", 16)
+    consumed = []
+
+    async def parts():
+        for index, chunk in enumerate([b"--label\r\n", b"x" * 32, b"unread"]):
+            consumed.append(index)
+            yield chunk
+
+    response = await client.post(
+        "/api/scans", content=parts(), headers={"Content-Type": "multipart/form-data; boundary=label"},
+    )
+    assert response.status_code == 413
+    assert consumed == [0, 1]
+    provider.assert_not_awaited()
+
+
 @pytest.mark.parametrize("violation", ["list", "missing", "nested", "uncertainties", "excerpt", "state", "null_explanation"])
 async def test_malformed_output_is_recoverable(client, photo, label, provider, violation):
     if violation == "list":
@@ -115,7 +179,7 @@ async def test_malformed_output_is_recoverable(client, photo, label, provider, v
     assert "retake" in response.json()["detail"]
 
 
-@pytest.mark.parametrize("status", ["unreadable", "not_medication_label"])
+@pytest.mark.parametrize("status", ["unreadable", "not_medication_label", "mismatched_labels"])
 async def test_unreadable_or_unrelated(client, photo, label, provider, status):
     label.update(
         readability=status,
@@ -172,6 +236,7 @@ async def test_image_decoding_does_not_block_health(client, photo, provider, mon
 
 async def test_missing_key_and_removed_public_storage(client, photo, monkeypatch):
     monkeypatch.setattr(openai_vision.settings, "openai_api_key", SecretStr(""))
+    monkeypatch.setattr(openai_vision.settings, "mongodb_uri", SecretStr(""))
     monkeypatch.setenv("MONGODB_URI", "mongodb://example.invalid")
     health = await client.get("/api/health")
     assert health.json() == {"status": "ok", "openai_configured": False, "scan_storage": "disabled"}

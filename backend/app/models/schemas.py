@@ -48,7 +48,7 @@ class Explanations(StrictModel):
 
 
 class LabelAnalysis(StrictModel):
-    readability: Literal["readable", "partial", "unreadable", "not_medication_label"]
+    readability: Literal["readable", "partial", "unreadable", "not_medication_label", "mismatched_labels"]
     source_language: SourceLanguage
     extracted_text: str
     medication: PrintedSection
