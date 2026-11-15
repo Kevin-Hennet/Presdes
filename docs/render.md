@@ -1,6 +1,6 @@
 # PresDes on Render Free
 
-Deploy one Python web service named `presdes-demo` in Virginia using the Free plan. Point it at `master`, set Auto-Deploy to **After CI Checks Pass**, and leave the root directory at the repository root. The [Blueprint](../render.yaml) defines the service. Use the same settings if creating it manually. [Render Blueprint reference](https://render.com/docs/blueprint-spec)
+Deploy one Python web service named `presdes-demo` in Virginia using the Free plan. Point it at `master`, leave Render's native Auto-Deploy **Off**, and leave the root directory at the repository root. GitHub Actions triggers deployments after the tests pass. The [Blueprint](../render.yaml) defines the service. Use the same settings if creating it manually. [Render Blueprint reference](https://render.com/docs/blueprint-spec)
 
 | Setting | Value |
 | --- | --- |
@@ -12,9 +12,9 @@ The build installs the pinned Python dependencies and compiles the frontend. The
 
 ## Publishing changes
 
-Push or merge reviewed changes into `master`. GitHub Actions runs the backend tests on Python 3.11 and 3.12, the Chromium and WebKit browser tests, and the Ubuntu and Render release builds. Render deploys the new revision after those checks pass. A failed check prevents automatic deployment; feature-branch pushes do not update the live app. Watch the GitHub Actions run and then the service's Render deploy status before treating an update as live.
+Push or merge reviewed changes into `master`. GitHub Actions runs the backend tests on Python 3.11 and 3.12, the Chromium and WebKit browser tests, and the Ubuntu and Render release builds. Its `deploy-render` job then calls Render's deploy hook with the exact tested commit SHA. A failed check prevents automatic deployment; feature-branch pushes and pull requests do not update the live app. The job skips obsolete commits if a newer push has reached `master`, and deployment requests are serialized. Watch the GitHub Actions run and then the service's Render deploy status before treating an update as live.
 
-Automatic deploys require a connected Git provider; a service created only from a public repository URL needs that connection configured. Keep the service branch and Auto-Deploy settings aligned with `render.yaml`. [Render automatic deployment documentation](https://render.com/docs/deploys#automatic-deploys)
+Store the service's private deploy hook URL (Render Settings > Deploy Hook) as the GitHub Actions **repository secret** `RENDER_DEPLOY_HOOK_URL`. Never commit the URL or put it in a plain-text repository variable. If the hook is regenerated, replace that secret. No Render account API key or app credentials are needed in GitHub. This integration works with a public repository URL without installing the Render GitHub app. Native Auto-Deploy remains off to avoid duplicate or untested deployments. [Render deploy hook documentation](https://render.com/docs/deploy-hooks#using-with-github-actions)
 
 ## Environment variables
 

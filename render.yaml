@@ -5,7 +5,8 @@ services:
     plan: free
     region: virginia
     branch: master
-    autoDeployTrigger: checksPass
+    # GitHub Actions triggers the deploy hook after all checks pass.
+    autoDeployTrigger: "off"
     buildCommand: bash render-build.sh
     startCommand: >-
       python -m uvicorn app.cloud:create_app --factory --app-dir backend
