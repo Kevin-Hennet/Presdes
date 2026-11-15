@@ -8,16 +8,16 @@ Reviewed upstream commit `f41f3a0f1e03663aed531074bd55d813920bf63f` on November 
 | --- | --- | --- |
 | 1. TypeScript production build and speech language | Fixed. Speech uses the selected section's source or explanation language and maps it to a browser language code. | Production build and browser speech test with Spanish explanation and English source. |
 | 2. Undeclared OpenAI SDK and stale Gemini setup | Fixed. OpenAI Responses API is the sole analyzer. Health reports liveness and key presence. Backend dependencies and environment example align. | Clean Python 3.11 install and running API. Mock provider tests check the request contract. A missing key returns 503 while the site and health route remain available. |
-| 3. Shared scans, medications and doses | Retired all shared-persistence routes and the database connection. Text saving is opt-in within one browser profile. | Tested retired routes with and without the legacy Mongo setting. Browser tests cover explicit save, reopen and delete. |
+| 3. Shared scans, medications and doses | Shared routes were retired. The new MongoDB collection stores only opt-in saved-scan text and filters every operation by signed browser session. Browser-local history remains available. | Two sessions could each save their own copy. One session could not list, open, overwrite or delete the other's record. Tests cover forged cookies and cross-origin mutations. |
 | 4. Dose logging ObjectId and duplicate retry | Retired dose logging with MedMinder. Scan responses serialize explicit UUIDs and UTC timestamps. | Tests assert that dose logging is unavailable and a valid scan returns serialized JSON. |
 | 5. Result attached to the wrong image | Fixed. Each request owns its captured image and explanation language. Replacement aborts and invalidates the previous request. | Browser test delivers a late result after replacement and checks that the newer image and result stay associated. |
 | 6. Malformed AI output and missing uncertainty | Fixed. Strict structured output and Pydantic validation cover nested fields, uncertainty, excerpts and unreadable states. | API cases include non-object output, null or missing fields, invalid state, malformed uncertainty, fabricated excerpts, partial readability and unrelated input. |
 | 7. Large text, contrast and keyboard access | Fixed. Root-scaled text, full palettes, focus handling, labeled toggles and announcements apply to the working screens. | Playwright checks computed sizes and 320 px reflow. Axe checks WCAG A and AA rules for four palettes. Hardware assistive-technology checks are pending. |
 | 8. Blocking scan operations on the event loop | Fixed. OpenAI and openFDA calls are asynchronous. Pillow validation and photo preparation run in a thread pool. | Health stays responsive while an analysis or image processing is in progress. A provider deadline test returns 504. |
-| 9. Storage failure drops a scan | Fixed. The analysis arrives before any optional browser storage write. | A simulated storage quota failure reports “Scan not saved” and leaves the result visible. |
+| 9. Storage failure drops a scan | Analysis completes independently of both save options. | Simulated browser quota and MongoDB outages leave the result visible. Browser fallback requires its own save action. |
 | 10. Stale production shell | Fixed. A replacement service worker clears the legacy LabelLens cache and defers to HTTP caching. | A browser with an installed legacy worker receives the updated shell. Its unrelated cache survives and API requests reach the server. |
 | 11. Reminders stop on navigation and chart dates use UTC | Retired MedMinder, reminders, adherence charts and their API routes. | The medication and adherence routes are unavailable and navigation exposes the retained screens. |
-| 12. Saved history lacks result details | Fixed. Local history reopens the excerpts, full label text and explanations. Saved scans contain text only. | Browser test reloads, reopens the result, verifies the text-only status and deletes the entry. |
+| 12. Saved history lacks result details | Both history views reopen excerpts, full label text and explanations. Saved scans contain text only. | Browser tests cover reopening and deleting from both histories, preserving an existing local entry, and keeping the fictional example label in MongoDB. |
 
 ## Additional observations
 
@@ -31,7 +31,7 @@ Reviewed upstream commit `f41f3a0f1e03663aed531074bd55d813920bf63f` on November 
 | Delete failure was unhandled | Saved scan deletion handles browser storage failure visibly. Successful deletion is exercised by Playwright. |
 | OCR highlighting matched common words outside the intended passage | Decorative word boxes and Tesseract were retired. The server validates that each excerpt occurs in the AI transcription. Excerpts and the actual source photo are independently available in the live result. |
 | Bill arithmetic claim exceeded implementation | Bill and lease analysis and their bill-specific checks were retired. Unsupported document options are rejected at the API. |
-| README, dependencies, deployment and reading-level behavior diverged | README, server environment, API contract and Docker Compose/nginx now agree. Production serves the web build and forwards API requests. Reading levels switch between the two versions returned together. |
+| README, dependencies, deployment and reading-level behavior diverged | README, server environment and API contract describe direct Uvicorn startup. Uvicorn serves the web build and API on one origin. Reading levels switch between both returned versions. |
 | Repository lacked application tests and CI | Added a FastAPI regression suite, a Chromium/Playwright suite with axe, and GitHub Actions jobs. |
 | Compressed source and untyped data | Typed the API client and extracted capture, results and speech components. TypeScript runs as part of the production build. |
 | Overview and current product differed | PresDes branding, in-page capture, explicit directions/warnings/dates, full text, selected-section speech, pharmacist questions, local history and two explanation levels are implemented. The README lists future work. |
@@ -40,9 +40,10 @@ Reviewed upstream commit `f41f3a0f1e03663aed531074bd55d813920bf63f` on November 
 
 | Check | Result |
 | --- | --- |
-| Fresh Python 3.11 virtual environment, `requirements-test.txt`, then `python -m pytest -q` from `backend` | 19 passed. Used an environment outside the OneDrive workspace after package hardlinks failed there. |
-| `npm ci`, `npm run build`, and `npm test` from `frontend` | Clean install, TypeScript and Vite build passed. 12 Chromium tests passed. |
-| `docker compose -p presdes-verify config --quiet`, build and start, then `nginx -t` | Passed. Checked HTML, asset, manifest and worker responses, liveness, an unavailable-provider upload, the retired medication route, and the live openFDA no-match case using a fictional name. nginx returned 413 for an upload over 12 MiB. Checked HTTP cache directives for HTML, the worker, assets and API responses. |
+| Python 3.11, `requirements-test.txt`, then `python -m pytest -q` from `backend` | 24 passed. The saved-scan tests use a controlled collection to exercise the API and query filters, including idempotency, session isolation, CSRF, malformed input, pagination and outage recovery. |
+| `npm run build` and `npm test` from `frontend` | TypeScript and Vite build passed. 14 Chromium tests passed, including the uncertainty audio and source-photo regressions. Browser API fixtures cover saved-scan interactions and local-history preservation. |
+| Native Windows startup using `scripts/start.ps1` | Passed with Uvicorn serving the built frontend and API. The test instance ran on port 8081. After checking it, the two PresDes containers were stopped and the direct app took over the original port 8080. |
+| Real MongoDB Community 8.0.20 on Windows | Bound a temporary database to loopback and used a dedicated verification database. With direct Uvicorn, the browser saved the prepared fictional label, reopened and deleted it. A retry returned one unchanged record. A second browser session received 404 for the first session's detail and delete routes, and a cross-origin delete was rejected. The verification record was removed. |
 | Chromium → Vite preview proxy → Uvicorn/FastAPI → mocked OpenAI SDK | Uploaded the fictional label. The HTTP 200 response rendered the matching photo, excerpts, and the mocked explanation. |
 | Keyboard and responsive layout | Checked skip link, focus after photo and result transitions, source-photo keyboard navigation, and Display dismissal. The expanded photo fits at 320, 390, and 1280 CSS pixels with large text in all four palettes. Axe passed at 320 CSS pixels in each palette. Result excerpts and transcript grow from 17.28 px to 21.6 px. |
 
@@ -59,6 +60,7 @@ Calculated from the CSS colors. Body text, secondary text and primary button tex
 
 ### Pending external checks
 
+- Atlas needs the project's connection URI. The real database round-trip used MongoDB Community on this computer. Use the masked local setup script described in the [README](../README.md) to connect Atlas.
 - A live OpenAI analysis needs a configured project key with model access. The provider and browser fixtures exercise structure and presentation. Extraction accuracy against real photographs remains unverified.
 - A physical-phone rehearsal, native camera picker, VoiceOver or TalkBack, and audible playback on the presentation equipment require that device and setup. Follow the [demo checklist](demo.md).
 - The GitHub Actions workflow awaits a run on GitHub. Its install, build, and test commands were exercised locally.

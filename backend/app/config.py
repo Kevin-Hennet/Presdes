@@ -13,6 +13,16 @@ class Settings(BaseSettings):
 
     openai_api_key: SecretStr = SecretStr("")
     openai_model: str = "gpt-5.5"
+    mongodb_uri: SecretStr = SecretStr("")
+    mongodb_database: str = "presdes"
+    mongodb_session_secret: SecretStr = SecretStr("")
+
+    @property
+    def mongo_configured(self) -> bool:
+        return bool(
+            self.mongodb_uri.get_secret_value()
+            and len(self.mongodb_session_secret.get_secret_value()) >= 32
+        )
 
 
 settings = Settings()

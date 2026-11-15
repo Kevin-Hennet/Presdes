@@ -228,6 +228,7 @@ li + li { margin-top: .32em; }
 
 .button.primary { background: var(--brand); color: var(--on-brand); }
 .button.outline { background: var(--surface); border-color: var(--rule); color: var(--ink); }
+.button[aria-pressed="true"] { background: var(--tint); text-decoration: underline; text-underline-offset: .24em; }
 .button.plain, .button.link-button { color: var(--brand); }
 .button.link-button { justify-self: start; padding-inline: 0; text-decoration: underline; text-underline-offset: .24em; }
 .button:hover:not(:disabled) { text-decoration: underline; text-underline-offset: .24em; }

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowLeft, Bookmark, CalendarDays, ClipboardList, FileText, Image, ShieldAlert, type LucideIcon } from 'lucide-react';
-import { languages, type Analysis, type PrintedSection, type SourceLanguage } from '../api/client';
+import { languages, saveMongoScan, type Analysis, type PrintedSection, type SourceLanguage } from '../api/client';
 import { saveAnalysis } from '../history';
 import { SpeechButton, useSpeech, type SpeechPart } from './Speech';
 
@@ -76,22 +76,27 @@ type ResultsProps = {
   photo?: { url: string; alt: string };
   example?: boolean;
   onBack: () => void;
-  saved?: boolean;
+  saved?: 'browser' | 'mongodb';
 };
 
-export function Results({ result, photo, example = false, onBack, saved = false }: ResultsProps) {
+export function Results({ result, photo, example = false, onBack, saved }: ResultsProps) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const pendingMongoSave = useRef<AbortController | null>(null);
   const speech = useSpeech();
   const [level, setLevel] = useState<'simple' | 'detailed'>('simple');
   const [saveState, setSaveState] = useState<'idle' | 'saved' | 'failed'>(saved ? 'saved' : 'idle');
   const [saveError, setSaveError] = useState('');
+  const [mongoSaved, setMongoSaved] = useState(false);
+  const [mongoSaving, setMongoSaving] = useState(false);
+  const [mongoError, setMongoError] = useState('');
   const source = result.source_language;
   const language = result.explanation_language;
   const usable = result.readability === 'readable' || result.readability === 'partial';
-  const canSave = usable && !example && !saved;
+  const canSave = usable && !saved;
   const uncertainties = result.uncertainties.join('\n');
 
   useEffect(() => { heading.current?.focus(); }, []);
+  useEffect(() => () => pendingMongoSave.current?.abort(), []);
 
   function save() {
     try {
@@ -100,6 +105,25 @@ export function Results({ result, photo, example = false, onBack, saved = false 
     } catch (error) {
       setSaveState('failed');
       setSaveError(error instanceof Error ? error.message : 'This browser could not save the scan.');
+    }
+  }
+
+  async function saveToMongo() {
+    if (pendingMongoSave.current || mongoSaved) return;
+    const controller = new AbortController();
+    pendingMongoSave.current = controller;
+    setMongoSaving(true);
+    setMongoError('');
+    try {
+      await saveMongoScan(result, example, controller.signal);
+      if (!controller.signal.aborted) setMongoSaved(true);
+    } catch (cause) {
+      if (!controller.signal.aborted) {
+        setMongoError(cause instanceof Error ? cause.message : 'Try again later.');
+      }
+    } finally {
+      pendingMongoSave.current = null;
+      if (!controller.signal.aborted) setMongoSaving(false);
     }
   }
 
@@ -119,7 +143,9 @@ export function Results({ result, photo, example = false, onBack, saved = false 
             : 'Take another photo with the whole medication label in focus and free of glare.'}
         </p>
         {photo && <SourcePhoto {...photo} />}
-        {saved && <p className="muted">Saved scans contain text only.</p>}
+        {saved && <p className="muted">
+          Saved scans contain text only. {saved === 'mongodb' ? 'Stored in MongoDB for this browser session.' : 'Stored on this browser.'}
+        </p>}
       </div>
       <p className="sr-only" role="status">
         {usable ? 'Label analysis ready.' : 'Analysis complete. A new photo is needed.'}
@@ -186,12 +212,22 @@ export function Results({ result, photo, example = false, onBack, saved = false 
           <aside aria-label="Save options">
             <section className="card result-section">
               <h2>Keep this scan</h2>
-              <p className="muted">Save extracted text and explanations on this browser. Anyone using this browser profile can read saved scans.</p>
-              <button type="button" className="button outline" disabled={saveState === 'saved'} onClick={save}>
-                <Bookmark size={19} aria-hidden="true" /> Save text on this browser
+              <p className="muted">Save extracted text and explanations. The photo stays with the current result.</p>
+              {!example && (
+                <>
+                  <button type="button" className="button outline" disabled={saveState === 'saved'} onClick={save}>
+                    <Bookmark size={19} aria-hidden="true" /> Save text on this browser
+                  </button>
+                  {saveState === 'saved' && <p role="status">Scan text saved on this browser.</p>}
+                  {saveState === 'failed' && <p role="alert" className="notice">Scan not saved. {saveError}</p>}
+                </>
+              )}
+              <button type="button" className="button outline" disabled={mongoSaving || mongoSaved} onClick={saveToMongo}>
+                <Bookmark size={19} aria-hidden="true" /> {mongoSaving ? 'Saving to MongoDB…' : 'Save text to MongoDB'}
               </button>
-              {saveState === 'saved' && <p role="status">Scan text saved on this browser.</p>}
-              {saveState === 'failed' && <p role="alert" className="notice">Scan not saved. {saveError}</p>}
+              <p className="muted">MongoDB history is private to this browser session. Anyone using this browser profile can reopen its saved scans.</p>
+              {mongoSaved && <p role="status">{example ? 'Prepared example' : 'Scan text'} saved to MongoDB.</p>}
+              {mongoError && <p role="alert" className="notice">MongoDB save failed. {mongoError}</p>}
             </section>
           </aside>
         )}

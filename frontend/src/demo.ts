@@ -7,7 +7,7 @@ const warnings = 'Keep this demonstration container out of reach of children.';
 const date = 'Discard after NOV 30 2027.';
 
 export const exampleAnalysis: Analysis = {
-  id: 'example',
+  id: 'da93e278-69f0-41b0-ba5f-aea498aad97c',
   created_at: '2026-11-14T12:00:00Z',
   readability: 'readable',
   source_language: 'en',
