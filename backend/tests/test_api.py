@@ -285,6 +285,18 @@ async def test_rejects_invalid_input_and_enforces_body_limit(client, photo, prov
     provider.assert_not_awaited()
 
 
+def test_rgb_jpeg_discards_exif_comment_and_color_profile():
+    raw = BytesIO()
+    original = Image.new("RGB", (32, 24), "white")
+    original.getexif()[315] = "private camera metadata"
+    original.save(raw, "JPEG", exif=original.getexif(), comment=b"private comment", icc_profile=b"sample profile")
+    prepared = images.prepare_image(raw.getvalue(), "image/jpeg")
+    with Image.open(BytesIO(prepared)) as decoded:
+        assert not decoded.getexif()
+        assert "comment" not in decoded.info
+        assert "icc_profile" not in decoded.info
+
+
 @pytest.mark.parametrize("multipart", [False, True])
 async def test_still_gif_preserves_full_frame_and_flattens_transparency(client, provider, multipart):
     frame = Image.new("P", (600, 638), 0)

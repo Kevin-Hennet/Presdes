@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: presdes-demo
+    runtime: python
+    plan: free
+    region: virginia
+    branch: codex/presdes-reliability-accessibility
+    autoDeployTrigger: "off"
+    buildCommand: bash render-build.sh
+    startCommand: >-
+      python -m uvicorn app.cloud:create_app --factory --app-dir backend
+      --host 0.0.0.0 --port "$PORT" --workers 1 --no-proxy-headers --no-access-log
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.12"
+      - key: NODE_VERSION
+        value: "22.23.5"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.5
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DATABASE
+        value: presdes
+      - key: MONGODB_SESSION_SECRET
+        sync: false
+      - key: PRESDES_DEMO_USERNAME
+        sync: false
+      - key: PRESDES_DEMO_PASSWORD
+        sync: false

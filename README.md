@@ -85,6 +85,7 @@ Each scan accepts one to four still JPG, PNG, WebP, GIF, HEIC or HEIF images, up
 ## Serving the app and accessing it from a phone
 
 For an Ubuntu host with systemd and Caddy, see the [Vultr deployment guide](docs/deploy.md).
+For a password-protected demo on Render Free, see the [Render deployment guide](docs/render.md).
 
 Uvicorn serves the production Vite build and `/api/` on the same loopback origin. For the in-page camera on a physical phone, use an HTTPS address the phone can reach with a certificate it trusts. Forward HTTPS traffic to `127.0.0.1:8080` and preserve the public Host and forwarded HTTPS scheme so the API can verify the request origin and set a Secure cookie. Allow 24 MiB of images plus multipart request headers and at least 75 seconds for an API response. The API's OpenAI deadline is 60 seconds.
 

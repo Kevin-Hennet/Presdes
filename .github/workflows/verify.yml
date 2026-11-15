@@ -65,3 +65,5 @@ jobs:
           export PRESDES_RELEASES_DIR="$RUNNER_TEMP/presdes-releases"
           mkdir -p "$PRESDES_RELEASES_DIR"
           bash deploy/build-release.sh "$GITHUB_SHA"
+      - name: Build the Render service
+        run: bash render-build.sh

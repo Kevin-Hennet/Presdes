@@ -31,11 +31,17 @@ def prepare_image(raw: bytes, mime_type: str) -> bytes:
                     raise InvalidImage("Animated images are not supported. Save the frame showing the complete label as a still image and upload that instead.")
                 image.verify()
             with Image.open(BytesIO(raw)) as image:
-                oriented = ImageOps.exif_transpose(image)
-                oriented.thumbnail((MAX_IMAGE_EDGE, MAX_IMAGE_EDGE))
-                rgba = oriented.convert("RGBA")
-                jpeg = Image.new("RGB", rgba.size, "white")
-                jpeg.paste(rgba, mask=rgba.getchannel("A"))
+                # Resize before transposing so the orientation copy is limited to the output dimensions.
+                image.thumbnail((MAX_IMAGE_EDGE, MAX_IMAGE_EDGE))
+                ImageOps.exif_transpose(image, in_place=True)
+                if "A" in image.getbands() or "transparency" in image.info:
+                    rgba = image if image.mode == "RGBA" else image.convert("RGBA")
+                    jpeg = Image.new("RGB", rgba.size, "white")
+                    jpeg.paste(rgba, mask=rgba.getchannel("A"))
+                else:
+                    jpeg = image if image.mode == "RGB" else image.convert("RGB")
+                # Pillow can carry JPEG comments forward even without explicit save options.
+                jpeg.info.clear()
                 output = BytesIO()
                 jpeg.save(output, "JPEG", quality=94)
                 return output.getvalue()
