@@ -14,6 +14,19 @@ export default defineConfig({
       args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
     },
   },
+  projects: [
+    { name: 'chromium' },
+    {
+      name: 'iphone-webkit',
+      testMatch: '**/camera-overlay.spec.ts',
+      use: {
+        ...devices['iPhone 15'],
+        browserName: 'webkit',
+        serviceWorkers: 'block',
+        launchOptions: {},
+      },
+    },
+  ],
   webServer: {
     command: 'npm run preview -- --strictPort',
     url: 'http://127.0.0.1:4173',

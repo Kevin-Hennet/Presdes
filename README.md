@@ -64,7 +64,7 @@ Open [Vite on port 5173](http://localhost:5173). Vite forwards `/api/` to FastAP
 
 ## What the prototype includes
 
-- In-page camera preview with successive captures, multi-file upload, and a device-camera picker fallback. Review, remove, or retake up to four overlapping views of one bottle before analyzing.
+- Full-screen in-page camera with successive captures and a bottom thumbnail strip, plus multi-file upload and a device-camera picker fallback. Tap a thumbnail to review, remove, or retake any of the four views. Capture uses the framing shown in the live preview. Tap **Done** to keep the photos and return to analysis.
 - Directions, warnings, printed dates and full extracted text in the label language, with explicit states for unclear lettering, text that could not be found, and unreadable photos.
 - Plain-language and detailed explanations in the selected output language. The reading-level control switches between both versions returned for the current scan.
 - Section-level read-aloud using the browser's available voices. It announces unclear or missing text before reading available excerpts. Large text, dark mode and high contrast are available under Display.
@@ -104,5 +104,5 @@ Saved-scan mutations require the app's own `Origin` and an `X-PresDes-Request: 1
 ## Checks and demo
 
 - From `backend`, install `requirements-test.txt` and run `python -m pytest -q`.
-- From `frontend`, run `npm ci`, `npx playwright install chromium`, `npm run build`, and `npm test`. On Linux CI, install Chromium with `--with-deps`.
+- From `frontend`, run `npm ci`, `npx playwright install chromium webkit`, `npm run build`, and `npm test`. The camera tests also run with iPhone WebKit emulation. On Linux CI, install the browsers with `--with-deps`.
 - See the [review findings and verification](docs/verification.md) and the [fictional-label demo and phone checklist](docs/demo.md).

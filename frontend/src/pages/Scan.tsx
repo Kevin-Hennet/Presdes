@@ -61,42 +61,41 @@ export default function ScanPage() {
     setError('');
   }
 
-  function focusReview() {
+  const focusReview = useCallback(() => {
     requestAnimationFrame(() => (reviewHeading.current ?? captureHeading.current)?.focus());
-  }
+  }, []);
 
-  function changeRetakeTarget(url: string | null) {
+  const changeRetakeTarget = useCallback((url: string | null) => {
     retakeTarget.current = url;
     setRetaking(url);
-  }
+  }, []);
 
   function choosePhotos(files: File[], origin: 'camera' | 'picker') {
-    if (retakeTarget.current !== retaking) return;
+    function reject(message: string) {
+      if (origin === 'picker') setError(message);
+      return message;
+    }
+    if (retakeTarget.current !== retaking) return reject('The photo selection changed. Try again.');
     const previous = selected.current;
     const replaceIndex = retaking ? previous.findIndex(item => item.url === retaking) : -1;
     if (retaking && (files.length !== 1 || replaceIndex < 0)) {
-      setError('Choose one replacement photo.');
-      return;
+      return reject('Choose one replacement photo.');
     }
     if (previous.length + files.length - (replaceIndex >= 0 ? 1 : 0) > maxPhotos) {
-      setError('Choose up to four photos of the same bottle.');
-      return;
+      return reject('Choose up to four photos of the same bottle.');
     }
     for (const file of files) {
       if (!supportedTypes.has(file.type)) {
-        setError(`${file.name} must be a JPG, PNG, or WebP photo.`);
-        return;
+        return reject(`${file.name} must be a JPG, PNG, or WebP photo.`);
       }
       if (!file.size || file.size > maxPhotoBytes) {
-        setError(file.size ? `${file.name} exceeds 12 MB. Choose a smaller photo.` : `${file.name} is empty. Choose another photo.`);
-        return;
+        return reject(file.size ? `${file.name} exceeds 12 MB. Choose a smaller photo.` : `${file.name} is empty. Choose another photo.`);
       }
     }
     const retained = previous.filter((_, index) => index !== replaceIndex);
     const combinedBytes = [...retained.map(item => item.file), ...files].reduce((sum, file) => sum + file.size, 0);
     if (combinedBytes > maxTotalBytes) {
-      setError('The photos exceed 24 MB total. Remove a photo or choose smaller files.');
-      return;
+      return reject('The photos exceed 24 MB total. Remove a photo or choose smaller files.');
     }
 
     const additions = files.map(file => ({ file, url: URL.createObjectURL(file) }));
@@ -112,11 +111,11 @@ export default function ScanPage() {
     if (origin === 'picker') focusReview();
   }
 
-  function removePhoto(photo: Photo) {
-    URL.revokeObjectURL(photo.url);
-    if (retaking === photo.url) changeRetakeTarget(null);
-    changePhotos(selected.current.filter(item => item.url !== photo.url));
-    focusReview();
+  function removePhoto(url: string, restoreFocus: boolean) {
+    URL.revokeObjectURL(url);
+    if (retaking === url) changeRetakeTarget(null);
+    changePhotos(selected.current.filter(item => item.url !== url));
+    if (restoreFocus) focusReview();
   }
 
   function retakePhoto(photo: Photo) {
@@ -200,13 +199,14 @@ export default function ScanPage() {
             </div>
           )}
           <Capture
+            photos={photos}
+            maxPhotos={maxPhotos}
+            retaking={retaking}
             onPhotos={choosePhotos}
+            onRemove={url => removePhoto(url, false)}
+            onRetake={changeRetakeTarget}
             onCameraOpened={cancelAnalysis}
             onCameraDone={focusReview}
-            available={photos.length < maxPhotos || Boolean(retaking)}
-            hasPhotos={photos.length > 0}
-            replacing={Boolean(retaking)}
-            analyzing={busy}
           />
           {photos.length > 0 && (
             <section className="photo-review" aria-labelledby="review-heading">
@@ -224,7 +224,7 @@ export default function ScanPage() {
                       <p className="muted">Photo {number} · {photo.file.name}</p>
                       <div className="button-row">
                         <button className="button outline" type="button" aria-label={`Retake photo ${number}`} onClick={() => retakePhoto(photo)}>Retake</button>
-                        <button className="button plain" type="button" aria-label={`Remove photo ${number}`} onClick={() => removePhoto(photo)}>Remove</button>
+                        <button className="button plain" type="button" aria-label={`Remove photo ${number}`} onClick={() => removePhoto(photo.url, true)}>Remove</button>
                       </div>
                     </li>
                   );

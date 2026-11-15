@@ -169,15 +169,14 @@ test('captures successive camera views and stops the video track when done', asy
   await page.getByRole('button', { name: 'Open camera' }).click();
   await expect(page.getByLabel('Live camera preview')).toBeVisible();
   await page.getByRole('button', { name: 'Capture photo' }).click();
-  await expect(page.getByRole('heading', { name: 'Review your photo' })).toBeVisible();
-  await expect(page.getByText('captured-label-1.jpg', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Review photo 1' })).toBeVisible();
   await expect(page.getByLabel('Live camera preview')).toBeVisible();
   await page.getByRole('button', { name: 'Capture photo' }).click();
-  await expect(page.getByText('captured-label-2.jpg', { exact: false })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Remove photo 2' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Review photo 2' })).toBeVisible();
   await page.getByRole('button', { name: 'Done with camera' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-track-stopped', 'true');
   await expect(page.getByRole('heading', { name: 'Review your photos' })).toBeFocused();
+  await expect(page.getByText('captured-label-2.jpg', { exact: false })).toBeVisible();
 });
 
 test('speaks the selected result language, handles errors and cancels on navigation', async ({ page }) => {
