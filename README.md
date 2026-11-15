@@ -116,3 +116,13 @@ Saved-scan mutations require the app's own `Origin` and an `X-PresDes-Request: 1
 - See the [review findings and verification](docs/verification.md) and the [fictional-label demo and phone checklist](docs/demo.md).
 
 This project can potentially be very useful for old people, dyslexic people or for anyone who finds it hard to read small text.
+
+## How PresDes Works
+
+PresDes helps users understand medication labels by analyzing uploaded images.
+
+- Users upload a photo of a medication label.
+- The frontend sends the image to the FastAPI backend.
+- The backend uses AI to analyze the label and extract important information.
+- Results are returned in a clear, easy-to-understand format.
+- Saved scans allow users to access previous analyses.
