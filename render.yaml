@@ -4,8 +4,8 @@ services:
     runtime: python
     plan: free
     region: virginia
-    branch: codex/presdes-reliability-accessibility
-    autoDeployTrigger: "off"
+    branch: master
+    autoDeployTrigger: checksPass
     buildCommand: bash render-build.sh
     startCommand: >-
       python -m uvicorn app.cloud:create_app --factory --app-dir backend

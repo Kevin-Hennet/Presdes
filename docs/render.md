@@ -1,6 +1,6 @@
 # PresDes on Render Free
 
-Deploy one Python web service named `presdes-demo` in Virginia using the Free plan, with automatic deploys off. Point it at `codex/presdes-reliability-accessibility` and leave the root directory at the repository root. The [Blueprint](../render.yaml) defines the service. Use the same settings if creating it manually. [Render Blueprint reference](https://render.com/docs/blueprint-spec)
+Deploy one Python web service named `presdes-demo` in Virginia using the Free plan. Point it at `master`, set Auto-Deploy to **After CI Checks Pass**, and leave the root directory at the repository root. The [Blueprint](../render.yaml) defines the service. Use the same settings if creating it manually. [Render Blueprint reference](https://render.com/docs/blueprint-spec)
 
 | Setting | Value |
 | --- | --- |
@@ -9,6 +9,12 @@ Deploy one Python web service named `presdes-demo` in Virginia using the Free pl
 | Health check path | `/healthz` |
 
 The build installs the pinned Python dependencies and compiles the frontend. The same FastAPI service serves the frontend and API over the Render HTTPS URL.
+
+## Publishing changes
+
+Push or merge reviewed changes into `master`. GitHub Actions runs the backend tests on Python 3.11 and 3.12, the Chromium and WebKit browser tests, and the Ubuntu and Render release builds. Render deploys the new revision after those checks pass. A failed check prevents automatic deployment; feature-branch pushes do not update the live app. Watch the GitHub Actions run and then the service's Render deploy status before treating an update as live.
+
+Automatic deploys require a connected Git provider; a service created only from a public repository URL needs that connection configured. Keep the service branch and Auto-Deploy settings aligned with `render.yaml`. [Render automatic deployment documentation](https://render.com/docs/deploys#automatic-deploys)
 
 ## Environment variables
 
