@@ -1,1 +1,11 @@
-{"name":"LabelLens","short_name":"LabelLens","start_url":"/","scope":"/","display":"standalone","background_color":"#f6f8f5","theme_color":"#557d62","description":"Understand medicine labels, bills, and leases in plain language.","icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
+{
+  "name": "PresDes",
+  "short_name": "PresDes",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f9fb",
+  "theme_color": "#102a43",
+  "description": "Scan. Understand. Stay Informed.",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

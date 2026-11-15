@@ -1,15 +1,21 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from app.config import settings
-from app.routers import scan, medications
 
-app = FastAPI(title="LabelLens API", version="1.0.0", description="Document literacy and medication tracking API")
-app.add_middleware(CORSMiddleware, allow_origins=[x.strip() for x in settings.cors_origins.split(",")], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-app.include_router(scan.router); app.include_router(medications.router)
+from app.config import settings
+from app.routers import reference, scan
+
+app = FastAPI(
+    title="PresDes API",
+    version="2.0.0",
+    description="Analyze medication-label photos and look up individual FDA labels.",
+)
+app.include_router(scan.router)
+app.include_router(reference.router)
+
 
 @app.get("/api/health")
-def health():
-    return {"status": "ok", "gemini_configured": bool(settings.gemini_api_key), "mongodb_configured": bool(settings.mongodb_uri)}
-
-@app.get("/")
-def root(): return {"name": "LabelLens API", "docs": "/docs"}
+async def health() -> dict[str, str | bool]:
+    return {
+        "status": "ok",
+        "openai_configured": bool(settings.openai_api_key.get_secret_value()),
+        "scan_storage": "disabled",
+    }

@@ -1,2 +1,137 @@
-import {useEffect,useState} from 'react';import{ScanLine,ClipboardList,Pill,Settings2,Sun,Moon,Accessibility,ShieldCheck,Menu,X}from'lucide-react';import ScanPage from './pages/Scan';import MedMinder from './pages/MedMinder';import History from './pages/History';import{getHealth}from'./api/client';
-type Tab='scan'|'meds'|'history';export default function App(){const[tab,setTab]=useState<Tab>('scan'),[dark,setDark]=useState(false),[large,setLarge]=useState(false),[contrast,setContrast]=useState(false),[settings,setSettings]=useState(false),[api,setApi]=useState<any>(null),[mobile,setMobile]=useState(false);useEffect(()=>{getHealth().then(setApi).catch(()=>setApi({status:'offline'}));},[]);return <div className={`${dark?'dark ':''}${large?'large-text ':''}${contrast?'high-contrast ':''}app-shell`}><header className="topbar"><a className="brand" href="#" onClick={e=>{e.preventDefault();setTab('scan')}}><span className="brand-mark"><ScanLine size={20}/></span><span>label<span className="brand-light">lens</span><small>UNDERSTAND THE FINE PRINT</small></span></a><nav className="desktop-nav"><button className={tab==='scan'?'active':''} onClick={()=>setTab('scan')}><ScanLine size={16}/> Scan</button><button className={tab==='meds'?'active':''} onClick={()=>setTab('meds')}><Pill size={16}/> MedMinder</button><button className={tab==='history'?'active':''} onClick={()=>setTab('history')}><ClipboardList size={16}/> Scan history</button></nav><div className="top-actions"><span className={`connection ${api?.status==='ok'?'online':''}`}><i/>{api?.status==='ok'?'API connected':'API status'}</span><button className="icon-btn" aria-label="Accessibility settings" onClick={()=>setSettings(!settings)}><Settings2 size={19}/></button><button className="mobile-menu" onClick={()=>setMobile(!mobile)} aria-label="Menu">{mobile?<X/>:<Menu/>}</button></div></header>{mobile&&<nav className="mobile-nav"><button onClick={()=>{setTab('scan');setMobile(false)}}>Scan</button><button onClick={()=>{setTab('meds');setMobile(false)}}>MedMinder</button><button onClick={()=>{setTab('history');setMobile(false)}}>Scan history</button></nav>}{settings&&<div className="settings-pop"><div className="settings-head"><b>Accessibility</b><button className="icon-btn" onClick={()=>setSettings(false)}><X size={16}/></button></div><button onClick={()=>setLarge(!large)}><Accessibility size={16}/> Large text <span>{large?'On':'Off'}</span></button><button onClick={()=>setContrast(!contrast)}><ShieldCheck size={16}/> High contrast <span>{contrast?'On':'Off'}</span></button><button onClick={()=>setDark(!dark)}>{dark?<Sun size={16}/>:<Moon size={16}/>} Dark mode <span>{dark?'On':'Off'}</span></button></div>}<main>{tab==='scan'?<ScanPage/>:tab==='meds'?<MedMinder/>:<History/>}</main><footer><span>LabelLens <b>·</b> Built at HackUMass XIV</span><span><ShieldCheck size={13}/> Your documents deserve clarity.</span><p>Not medical or legal advice. Always confirm important decisions with a qualified professional.</p></footer></div>}
+import { Component, useEffect, useRef, useState, type ReactNode } from 'react';
+import { ScanLine, Settings2 } from 'lucide-react';
+import ScanPage from './pages/Scan';
+import History from './pages/History';
+import Reference from './pages/Reference';
+
+const pages = { scan: 'Scan', history: 'Saved scans', reference: 'FDA reference' } as const;
+type Page = keyof typeof pages;
+
+const options = { large: 'Large text', contrast: 'High contrast', dark: 'Dark mode' } as const;
+type Preferences = Record<keyof typeof options, boolean>;
+const preferenceKey = 'presdes:display:v1';
+const defaults: Preferences = { large: false, contrast: false, dark: false };
+
+function readPreferences(): Preferences {
+  try {
+    const value = JSON.parse(localStorage.getItem(preferenceKey) || 'null');
+    return { large: value?.large === true, contrast: value?.contrast === true, dark: value?.dark === true };
+  } catch {
+    return defaults;
+  }
+}
+
+function pageFromHash(): Page {
+  const hash = location.hash.slice(1);
+  return hash === 'history' || hash === 'reference' ? hash : 'scan';
+}
+
+class ContentBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() { return { failed: true }; }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <section className="notice" role="alert">
+        <h1>PresDes could not display this page</h1>
+        <button type="button" className="button outline" onClick={() => location.reload()}>Reload page</button>
+      </section>
+    );
+  }
+}
+
+export default function App() {
+  const [page, setPage] = useState(pageFromHash);
+  const [preferences, setPreferences] = useState(readPreferences);
+  const [accessibilityOpen, setAccessibilityOpen] = useState(false);
+  const main = useRef<HTMLElement>(null);
+  const settingsButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const navigate = () => {
+      setPage(pageFromHash());
+      setAccessibilityOpen(false);
+      requestAnimationFrame(() => main.current?.querySelector('h1')?.focus());
+    };
+    window.addEventListener('hashchange', navigate);
+    return () => window.removeEventListener('hashchange', navigate);
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.dark = String(preferences.dark);
+    root.dataset.contrast = String(preferences.contrast);
+    root.dataset.large = String(preferences.large);
+    try {
+      localStorage.setItem(preferenceKey, JSON.stringify(preferences));
+    } catch {
+      // The current page can still honor display preferences.
+    }
+  }, [preferences]);
+
+  return (
+    <>
+      <a className="skip-link" href="#main-content" onClick={event => {
+        event.preventDefault();
+        main.current?.focus();
+      }}>Skip to content</a>
+      <header className="site-header">
+        <div className="frame header-row">
+          <a className="brand" href="#scan">
+            <span className="brand-mark"><ScanLine size={23} aria-hidden="true" /></span>
+            PresDes
+          </a>
+          <nav className="site-nav" aria-label="Main navigation">
+            {(Object.keys(pages) as Page[]).map(item => (
+              <a key={item} href={'#' + item} aria-current={page === item ? 'page' : undefined}>{pages[item]}</a>
+            ))}
+          </nav>
+          <button
+            ref={settingsButton}
+            type="button"
+            className="button outline display-button"
+            aria-expanded={accessibilityOpen}
+            aria-controls="display-options"
+            onClick={() => setAccessibilityOpen(value => !value)}
+          >
+            <Settings2 size={19} aria-hidden="true" /> Display
+          </button>
+        </div>
+        <section
+          className="frame display-panel"
+          id="display-options"
+          aria-label="Display settings"
+          hidden={!accessibilityOpen}
+          onKeyDown={event => {
+            if (event.key !== 'Escape') return;
+            setAccessibilityOpen(false);
+            settingsButton.current?.focus();
+          }}
+        >
+          {(Object.keys(options) as Array<keyof typeof options>).map(key => (
+            <label className="display-option" key={key}>
+              <input type="checkbox" checked={preferences[key]} onChange={event => {
+                const checked = event.target.checked;
+                setPreferences(previous => ({ ...previous, [key]: checked }));
+              }} />
+              {options[key]}
+            </label>
+          ))}
+        </section>
+      </header>
+      <main id="main-content" className="frame main" ref={main} tabIndex={-1}>
+        <ContentBoundary key={page}>
+          {page === 'scan' ? <ScanPage /> : page === 'history' ? <History /> : <Reference />}
+        </ContentBoundary>
+      </main>
+      <footer className="site-footer">
+        <div className="frame footer-row">
+          <strong>PresDes</strong>
+          <p>Accessibility prototype. Check the printed label and ask a pharmacist about medication decisions.</p>
+        </div>
+      </footer>
+    </>
+  );
+}

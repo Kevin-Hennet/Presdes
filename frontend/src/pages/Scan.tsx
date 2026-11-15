@@ -1,13 +1,155 @@
-import{useRef,useState}from'react';import{Upload,Camera,FileText,ShieldAlert,Volume2,Pause,RotateCcw,CheckCircle2,AlertTriangle,Info,ArrowUpRight,Loader2,Sparkles,ScanLine}from'lucide-react';import{analyze,Analysis}from'../api/client';
-export default function ScanPage(){const input=useRef<HTMLInputElement>(null);const[file,setFile]=useState<File|null>(null);const[preview,setPreview]=useState('');const[type,setType]=useState('auto');const[level,setLevel]=useState('simple');const[language,setLanguage]=useState('English');const[result,setResult]=useState<Analysis|null>(null);const[busy,setBusy]=useState(false);const[error,setError]=useState('');const[speaking,setSpeaking]=useState(false);const[imageSize,setImageSize]=useState({w:0,h:0});
- function choose(f?:File){if(!f)return;if(!f.type.startsWith('image/')){setError('Please choose an image file.');return;}setFile(f);setPreview(URL.createObjectURL(f));setResult(null);setError('');}
- async function run(){if(!file)return;setBusy(true);setError('');try{setResult(await analyze(file,type,level,language));}catch(e:any){setError(e.message||'Could not analyze this image.');}finally{setBusy(false);}}
- function speak(){if(!result)return;if(speaking){speechSynthesis.cancel();setSpeaking(false);return;}const text=[result.summary,...result.three_things.map(x=>`${x.title}. ${x.explanation}`),...result.red_flags.map(x=>`${x.title}. ${x.explanation}`)].join('. ');const u=new SpeechSynthesisUtterance(text);u.lang=language==='English'?'en-US':undefined;u.onend=()=>setSpeaking(false);speechSynthesis.cancel();speechSynthesis.speak(u);setSpeaking(true);}
- return <div className="page-wrap"><section className="hero"><div><div className="eyebrow"><span/> A LITTLE CLARITY GOES A LONG WAY</div><h1>Understand the<br/><em>fine print.</em></h1><p className="hero-copy">Medicine labels, bills, and leases — translated into language that makes sense. Just point, scan, and understand.</p><div className="hero-proof"><span><ShieldAlert size={15}/> Risk-aware explanations</span><span><Volume2 size={15}/> Read it aloud</span><span><CheckCircle2 size={15}/> Sources included</span></div></div><div className="hero-art"><div className="art-card art-back"><div className="art-lines"/><div className="art-stamp">REVIEW</div></div><div className="art-card art-front"><div className="art-top"><span>RX / LABEL</span><span className="art-dot"/></div><div className="art-pill"><span>Take with food</span><AlertTriangle size={13}/></div><div className="art-lines"/><div className="art-highlight">Plain language, right here.</div></div><div className="art-spark"><Sparkles size={22}/></div></div></section>
- <section className="scan-layout"><div className="scan-main"><div className="section-heading"><div><div className="eyebrow muted">01 — YOUR DOCUMENT</div><h2>Let's take a closer look.</h2><p>Upload a clear photo of the page you want to understand.</p></div><span className="step-tag">STEP 1 OF 2</span></div>
- <div className={`upload-zone ${preview?'has-preview':''}`} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();choose(e.dataTransfer.files[0])}}>{preview?<><img src={preview} alt="Selected document preview"/><div className="preview-tools"><span><CheckCircle2 size={15}/> Ready to scan</span><button onClick={()=>{setFile(null);setPreview('');setResult(null)}}><RotateCcw size={14}/> Replace photo</button></div></>:<><div className="upload-icon"><ScanLine size={27}/></div><h3>Drop your document here</h3><p>or choose a photo from your device</p><div className="upload-actions"><button className="btn-primary" onClick={()=>input.current?.click()}><Upload size={16}/> Upload photo</button><button className="btn-secondary" onClick={()=>{if(input.current){input.current.setAttribute('capture','environment');input.current.click()}}}><Camera size={16}/> Use camera</button></div><small>JPG, PNG or WEBP · Up to 12 MB</small></>}<input ref={input} type="file" accept="image/*" hidden onChange={e=>choose(e.target.files?.[0])}/></div>
- <div className="controls-row"><label>Document type<select value={type} onChange={e=>setType(e.target.value)}><option value="auto">Auto-detect</option><option value="medicine">Medicine label</option><option value="bill">Medical / utility bill</option><option value="lease">Lease / legal page</option></select></label><label>Reading level<select value={level} onChange={e=>setLevel(e.target.value)}><option value="simple">Simple</option><option value="standard">Standard</option></select></label><label>Language<select value={language} onChange={e=>setLanguage(e.target.value)}><option>English</option><option>Spanish</option><option>Hindi</option><option>French</option><option>Portuguese</option><option>Chinese</option><option>Arabic</option></select></label></div>
- <button className="btn-primary analyze-btn" disabled={!file||busy} onClick={run}>{busy?<><Loader2 className="spin" size={17}/> Reading your document…</>:<><Sparkles size={17}/> Explain this document <ArrowUpRight size={16}/></>}</button>{error&&<div className="error-box"><AlertTriangle size={17}/>{error}</div>}
- {result&&<div className="results" id="results"><div className="result-head"><div><div className="eyebrow muted">02 — YOUR EXPLANATION</div><h2>{result.document_title||'Here is what it says.'}</h2></div><div className="result-actions"><button className="btn-secondary" onClick={()=>window.print()}><FileText size={15}/> Save / print PDF</button><button className="btn-secondary" onClick={speak}>{speaking?<Pause size={16}/>:<Volume2 size={16}/>} {speaking?'Stop reading':'Read aloud'}</button></div></div><div className="disclaimer"><ShieldAlert size={17}/><span>{result.disclaimer}</span></div>{preview&&<div className="highlight-preview"><div className="highlight-title"><ScanLine size={14}/> DOCUMENT VIEW <span>Matched OCR text · verify against original</span></div><div className="highlight-image"><img src={preview} alt="Scanned document with highlighted text" onLoad={e=>setImageSize({w:e.currentTarget.naturalWidth,h:e.currentTarget.naturalHeight})}/>{imageSize.w>0&&result.word_boxes?.map((b,i)=>{const matched=result.red_flags.some(f=>f.source_text&&f.source_text.toLowerCase().includes(b.text.toLowerCase())&&b.text.length>2);return matched?<span key={i} className="ocr-box" style={{left:`${b.x/imageSize.w*100}%`,top:`${b.y/imageSize.h*100}%`,width:`${b.width/imageSize.w*100}%`,height:`${b.height/imageSize.h*100}%`}}/>:null})}</div><small>Boxes are OCR matches to quoted source text, not a legal or medical risk determination. If alignment looks off, use the source excerpts below.</small></div>}<div className="summary-card"><span className="card-kicker"><Sparkles size={14}/> IN A NUTSHELL</span><p>{result.summary}</p></div><h3 className="result-subhead">The 3 things to know</h3><div className="three-grid">{result.three_things.slice(0,3).map((x,i)=><article className="know-card" key={i}><span className="number">0{i+1}</span><h4>{x.title}</h4><p>{x.explanation}</p>{x.source_text&&<blockquote>“{x.source_text}”</blockquote>}</article>)}</div>{result.red_flags.length>0&&<><h3 className="result-subhead">Worth a closer look <span className="count-pill">{result.red_flags.length}</span></h3><div className="flag-list">{result.red_flags.map((f,i)=><article className={`flag-item ${f.severity}`} key={i}><div className="flag-icon"><AlertTriangle size={17}/></div><div><div className="flag-meta">{f.severity} attention · {f.category}</div><h4>{f.title}</h4><p>{f.explanation}</p>{f.source_text&&<blockquote>Source: “{f.source_text}”</blockquote>}</div></article>)}</div></>}{result.key_fields.length>0&&<><h3 className="result-subhead">Details pulled from the page</h3><div className="fields-grid">{result.key_fields.map((f,i)=><div className="field" key={i}><small>{f.label}</small><b>{f.value}</b>{f.source_text&&<span>“{f.source_text}”</span>}</div>)}</div></>}{result.bill_checks&&<div className="summary-card"><b>Bill arithmetic check</b><p>{result.bill_checks.note}</p>{result.bill_checks.possible_duplicates?.length>0?<p>{result.bill_checks.possible_duplicates.length} possible repeated line item(s) to review.</p>:<p>No obvious repeated line items detected.</p>}</div>}{result.uncertainties?.length>0&&<div className="notice"><Info size={16}/><div><b>What couldn't be confirmed</b>{result.uncertainties.map((x,i)=><p key={i}>{x}</p>)}</div></div>}<div className="professional-note"><b>Have a question?</b><p>Take this explanation to a pharmacist, doctor, billing office, or tenant-rights organization. They can help you decide what to do.</p></div></div>}
- </div><aside className="scan-aside"><div className="aside-card"><div className="aside-icon"><ShieldAlert size={20}/></div><h3>Clarity, not conclusions.</h3><p>LabelLens helps you understand what a document says. It never replaces a professional who knows your situation.</p><ul><li><CheckCircle2 size={15}/> Original text beside key claims</li><li><CheckCircle2 size={15}/> Unclear details called out</li><li><CheckCircle2 size={15}/> Human support for next steps</li></ul></div><div className="aside-quote"><FileText size={18}/><p>“I wish someone had explained this before I signed.”</p><small>That's the moment we're building for.</small></div><div className="privacy-note"><ShieldAlert size={15}/><span>Scan images are processed for analysis and are not stored by default. Extracted scan history is saved only when MongoDB is configured.</span></div></aside></section></div>
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowRight, Camera, ScanLine } from 'lucide-react';
+import { analyze, languages, type Analysis, type Language } from '../api/client';
+import { Capture } from '../components/Capture';
+import { Results } from '../components/Results';
+import { exampleAnalysis, examplePhoto } from '../demo';
+
+const supportedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const maxPhotoBytes = 12 * 1024 * 1024;
+
+type Photo = { file: File; url: string };
+type Scan = { result: Analysis; photo: { url: string; alt: string }; example?: boolean };
+
+export default function ScanPage() {
+  const pending = useRef<AbortController | null>(null);
+  const activeUrl = useRef<string | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  const [photo, setPhoto] = useState<Photo | null>(null);
+  const [scan, setScan] = useState<Scan | null>(null);
+  const [language, setLanguage] = useState<Language>('en');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const release = useCallback(() => {
+    pending.current?.abort();
+    pending.current = null;
+    if (activeUrl.current) URL.revokeObjectURL(activeUrl.current);
+    activeUrl.current = null;
+  }, []);
+
+  useEffect(() => release, [release]);
+  useEffect(() => { if (photo) reviewHeading.current?.focus(); }, [photo]);
+
+  const reset = useCallback(() => {
+    release();
+    setPhoto(null);
+    setScan(null);
+    setBusy(false);
+    setError('');
+  }, [release]);
+
+  const choosePhoto = useCallback((file: File) => {
+    reset();
+    if (!supportedTypes.has(file.type)) {
+      setError('Choose a JPG, PNG, or WebP photo.');
+      return;
+    }
+    if (!file.size || file.size > maxPhotoBytes) {
+      setError(file.size ? 'The photo exceeds 12 MB. Choose a smaller photo.' : 'The photo is empty. Choose another file.');
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    activeUrl.current = url;
+    setPhoto({ file, url });
+  }, [reset]);
+
+  async function submit() {
+    if (!photo || pending.current) return;
+    const controller = new AbortController();
+    pending.current = controller;
+    setBusy(true);
+    setError('');
+
+    try {
+      const result = await analyze(photo.file, language, controller.signal);
+      if (pending.current === controller) {
+        setScan({ result, photo: { url: photo.url, alt: 'Medication label photo used for this analysis' } });
+      }
+    } catch (cause) {
+      if (pending.current === controller) {
+        setError(cause instanceof Error ? cause.message : 'Could not analyze this photo. Try again.');
+      }
+    } finally {
+      if (pending.current === controller) {
+        pending.current = null;
+        setBusy(false);
+      }
+    }
+  }
+
+  function showExample() {
+    reset();
+    setScan({
+      result: exampleAnalysis,
+      photo: { url: examplePhoto, alt: 'Fictional Pine Sample training label' },
+      example: true,
+    });
+  }
+
+  function backToCapture() {
+    reset();
+    requestAnimationFrame(() => heading.current?.focus());
+  }
+
+  if (scan) return <Results {...scan} onBack={backToCapture} />;
+
+  return (
+    <>
+      <div className="page-intro scan-intro">
+        <p className="eyebrow">Scan. Understand. Stay Informed.</p>
+        <h1 ref={heading} tabIndex={-1}>Scan a medication label</h1>
+        <p className="lede">Read the directions, printed warnings, and dates on your label. Listen to a section or get a plain-language explanation.</p>
+      </div>
+      <div className="workspace-grid">
+        <section className="card capture-card" aria-labelledby="capture-heading">
+          <div className="feature-icon"><ScanLine size={28} aria-hidden="true" /></div>
+          <h2 id="capture-heading">Add a label photo</h2>
+          <p className="muted">Use your camera or choose a JPG, PNG, or WebP photo up to 12 MB.</p>
+          <Capture onPhoto={choosePhoto} onCameraOpened={reset} />
+          {photo && (
+            <section className="photo-review" aria-labelledby="review-heading">
+              <h3 id="review-heading" ref={reviewHeading} tabIndex={-1}>Review your photo</h3>
+              <img className="preview" src={photo.url} alt="Medication label photo selected for analysis" />
+              <p className="filename muted">{photo.file.name}</p>
+              <div className="field">
+                <label htmlFor="explanation-language">Explanation language</label>
+                <select id="explanation-language" value={language} disabled={busy} onChange={event => setLanguage(event.target.value as Language)}>
+                  {(Object.keys(languages) as Language[]).map(code => (
+                    <option key={code} value={code}>{languages[code].label}</option>
+                  ))}
+                </select>
+                <p className="muted">The extracted wording stays in the language printed on the label.</p>
+              </div>
+              <p className="muted">Analyzing sends the photo to OpenAI. Cover names and other personal information before continuing.</p>
+              <button className="button primary" type="button" disabled={busy} onClick={submit}>
+                <ScanLine size={20} aria-hidden="true" /> {busy ? 'Analyzing…' : 'Analyze label'}
+              </button>
+            </section>
+          )}
+          <p className="sr-only" role="status">{busy ? 'Analyzing the selected photo.' : ''}</p>
+          {error && <p className="notice" role="alert">{error}</p>}
+        </section>
+        <aside className="guide">
+          <section className="guide-section">
+            <Camera size={23} aria-hidden="true" />
+            <h2>Get a clear photo</h2>
+            <ul>
+              <li>Fill the frame with one label.</li>
+              <li>Use even light and avoid glare.</li>
+              <li>Check that small print is in focus.</li>
+            </ul>
+          </section>
+          <section className="guide-section">
+            <h2>See how it works</h2>
+            <p>Explore a prepared result for a fictional label.</p>
+            <button className="button link-button" type="button" onClick={showExample}>
+              Try fictional example <ArrowRight size={19} aria-hidden="true" />
+            </button>
+          </section>
+        </aside>
+      </div>
+    </>
+  );
 }

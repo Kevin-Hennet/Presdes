@@ -1,7 +1,75 @@
-const API = import.meta.env.VITE_API_URL || '';
-async function request<T>(path:string, init?:RequestInit):Promise<T>{const res=await fetch(`${API}${path}`,init);const data=await res.json().catch(()=>({detail:'Unexpected server response'}));if(!res.ok)throw new Error(data.detail||`Request failed (${res.status})`);return data as T;}
-export type Analysis={id:string;document_type:string;document_title:string;extracted_text:string;summary:string;three_things:{title:string;explanation:string;source_text:string}[];key_fields:{label:string;value:string;source_text:string}[];red_flags:{severity:string;category:string;title:string;explanation:string;source_text:string}[];questions_to_ask:string[];uncertainties:string[];word_boxes:{text:string;x:number;y:number;width:number;height:number}[];bill_checks?:any;disclaimer:string};
-export async function analyze(file:File,type:string,level:string,language:string){const body=new FormData();body.append('file',file);body.append('document_type',type);body.append('reading_level',level);body.append('language',language);return request<Analysis>('/api/scans',{method:'POST',body});}
-export const getHistory=()=>request<{items:any[]}>('/api/scans');export const deleteHistory=(id:string)=>request(`/api/scans/${id}`,{method:'DELETE'});export const getMeds=()=>request<{items:any[]}>('/api/medications');export const addMed=(data:any)=>request<any>('/api/medications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});export const deleteMed=(id:string)=>request(`/api/medications/${id}`,{method:'DELETE'});export const logDose=(medication_id:string,status:'taken'|'skipped')=>request('/api/doses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({medication_id,status})});export const getAdherence=()=>request<any>('/api/adherence');export const getHealth=()=>request<any>('/api/health');
+export const languages = {
+  en: { label: 'English', voice: 'en-US' },
+  es: { label: 'Spanish', voice: 'es-ES' },
+  hi: { label: 'Hindi', voice: 'hi-IN' },
+  fr: { label: 'French', voice: 'fr-FR' },
+  pt: { label: 'Portuguese', voice: 'pt-PT' },
+  zh: { label: 'Chinese (Mandarin)', voice: 'zh-CN' },
+  ar: { label: 'Arabic', voice: 'ar' },
+} as const;
 
-export const lookupLabels=(medications:string[])=>request<any>('/api/interactions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({medications})});
+export type Language = keyof typeof languages;
+export type SourceLanguage = Language | 'und';
+
+export type PrintedSection = {
+  state: 'found' | 'unclear' | 'not_found';
+  excerpts: string[];
+};
+
+export type Analysis = {
+  id: string;
+  created_at: string;
+  readability: 'readable' | 'partial' | 'unreadable' | 'not_medication_label';
+  source_language: SourceLanguage;
+  explanation_language: Language;
+  extracted_text: string;
+  medication: PrintedSection;
+  directions: PrintedSection;
+  warnings: PrintedSection;
+  printed_dates: PrintedSection;
+  explanations: { simple: string; detailed: string } | null;
+  uncertainties: string[];
+  pharmacist_questions: string[];
+};
+
+export type LabelMatch = {
+  name: string;
+  manufacturer: string | null;
+  source_url: string;
+};
+
+async function request<T>(path: string, init: RequestInit): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(path, { ...init, cache: 'no-store' });
+  } catch {
+    throw new Error('Could not reach PresDes. Check your connection and try again.');
+  }
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    if (typeof data?.detail === 'string') throw new Error(data.detail);
+    if (response.status === 413) throw new Error('The photo exceeds 12 MB. Choose a smaller photo.');
+    if (response.status === 422) throw new Error('Check your input and try again.');
+    if (response.status === 504) throw new Error('The request took too long. Try again.');
+    throw new Error('PresDes is temporarily unavailable. Try again.');
+  }
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('PresDes received an incomplete response. Try again.');
+  }
+  return data as T;
+}
+
+export function analyze(file: File, language: Language, signal: AbortSignal) {
+  return request<Analysis>('/api/scans?' + new URLSearchParams({ language }), {
+    method: 'POST',
+    headers: { 'Content-Type': file.type },
+    body: file,
+    signal,
+  });
+}
+
+export function lookupLabels(name: string, signal: AbortSignal) {
+  return request<{ matches: LabelMatch[] }>('/api/labels?' + new URLSearchParams({ name }), { signal });
+}
