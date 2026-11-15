@@ -128,7 +128,8 @@ test('restores the result and source photo, checks the bookmark, and clears only
   await page.getByRole('button', { name: 'Scan history', exact: true }).click();
   const open = page.getByRole('button', { name: 'Open saved scan for ' + labelName });
   await open.click();
-  await page.getByRole('button', { name: 'Add to saved medications', exact: true }).click();
+  await expect(page.getByRole('heading', { name: resultTitle, exact: true })).toBeFocused();
+  await page.getByRole('button', { name: 'Add to saved medications', exact: true }).press('Enter');
   await expect(page.getByText('Added to saved medications', { exact: true })).toBeVisible();
   await scanLink(page).click();
   await expect(page.getByRole('button', { name: 'Remove from saved medications', exact: true })).toBeVisible();
