@@ -414,26 +414,6 @@ export default function ScanPage({ active }: { active: boolean }) {
             </section>
           )}
           {error && <p className="notice" ref={errorNotice} tabIndex={-1} role="alert">{error}</p>}
-          {reviewedPhoto && (
-            <section className="scan-panel scan-submit" aria-label="Analysis settings">
-              <div className="field">
-                <label htmlFor="explanation-language">Explanation language</label>
-                <select id="explanation-language" value={language} onChange={event => void updateWorkspace({ language: event.target.value as Language })}>
-                  {(Object.keys(languages) as Language[]).map(code => (
-                    <option key={code} value={code}>{languages[code].label}</option>
-                  ))}
-                </select>
-                <p className="muted">Printed wording stays in the label’s original language.</p>
-              </div>
-              <p className="scan-disclosure">
-                <ShieldCheck size={19} aria-hidden="true" />
-                <span>Cover personal information. Analysis sends photos to OpenAI. Readable text and explanations are saved automatically in Scan history. This browser keeps the current scan and photos until you choose New scan.</span>
-              </p>
-              <button className="button primary scan-submit-button" type="button" disabled={Boolean(pendingPhotos) || Boolean(retaking)} onClick={submit}>
-                <ScanLine size={20} aria-hidden="true" /> Analyze label
-              </button>
-            </section>
-          )}
           <section className={reviewedPhoto ? 'scan-panel scan-capture' : 'scan-panel scan-capture scan-capture-empty'} aria-labelledby="capture-heading">
             {!reviewedPhoto && (
               <div className="scan-capture-art" aria-hidden="true">
@@ -479,6 +459,26 @@ export default function ScanPage({ active }: { active: boolean }) {
               )}
             </div>
           </section>
+          {reviewedPhoto && (
+            <section className="scan-panel scan-submit" aria-label="Analysis settings">
+              <div className="field">
+                <label htmlFor="explanation-language">Explanation language</label>
+                <select id="explanation-language" value={language} onChange={event => void updateWorkspace({ language: event.target.value as Language })}>
+                  {(Object.keys(languages) as Language[]).map(code => (
+                    <option key={code} value={code}>{languages[code].label}</option>
+                  ))}
+                </select>
+                <p className="muted">Printed wording stays in the label’s original language.</p>
+              </div>
+              <p className="scan-disclosure">
+                <ShieldCheck size={19} aria-hidden="true" />
+                <span>Cover personal information. Analysis sends photos to OpenAI. Readable text and explanations are saved automatically in Scan history. This browser keeps the current scan and photos until you choose New scan.</span>
+              </p>
+              <button className="button primary scan-submit-button" type="button" disabled={Boolean(pendingPhotos) || Boolean(retaking)} onClick={submit}>
+                <ScanLine size={20} aria-hidden="true" /> Analyze label
+              </button>
+            </section>
+          )}
           <details className="scan-formats">
             <summary><ImagePlus size={18} aria-hidden="true" /> Photo formats and limits <ChevronDown size={18} aria-hidden="true" /></summary>
             <p>Choose up to four JPG, PNG, WebP, still GIF, HEIC, or HEIF photos from the same bottle. Each photo can be up to 12 MB, with a 24 MB total limit. PresDes prepares previews for HEIC and HEIF photos.</p>
