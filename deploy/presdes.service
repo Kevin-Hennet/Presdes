@@ -1,0 +1,24 @@
+[Unit]
+Description=PresDes web app
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=exec
+User=presdes
+Group=presdes
+WorkingDirectory=/opt/presdes/current/backend
+EnvironmentFile=/etc/presdes/presdes.env
+Environment=PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+ExecStart=/opt/presdes/current/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-access-log --timeout-graceful-shutdown 120
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=125s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

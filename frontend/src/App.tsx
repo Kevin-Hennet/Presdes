@@ -2,9 +2,8 @@ import { Component, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ScanLine, Settings2 } from 'lucide-react';
 import ScanPage from './pages/Scan';
 import History from './pages/History';
-import Reference from './pages/Reference';
 
-const pages = { scan: 'Scan', history: 'Saved scans', reference: 'FDA reference' } as const;
+const pages = { scan: 'Scan', history: 'Saved medications' } as const;
 type Page = keyof typeof pages;
 
 const options = { large: 'Large text', contrast: 'High contrast', dark: 'Dark mode' } as const;
@@ -22,8 +21,7 @@ function readPreferences(): Preferences {
 }
 
 function pageFromHash(): Page {
-  const hash = location.hash.slice(1);
-  return hash === 'history' || hash === 'reference' ? hash : 'scan';
+  return location.hash === '#history' ? 'history' : 'scan';
 }
 
 class ContentBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -51,11 +49,15 @@ export default function App() {
 
   useEffect(() => {
     const navigate = () => {
+      if (location.hash === '#reference') {
+        window.history.replaceState(window.history.state, '', '#scan');
+      }
       setPage(pageFromHash());
       setAccessibilityOpen(false);
-      requestAnimationFrame(() => main.current?.querySelector('h1')?.focus());
+      requestAnimationFrame(() => main.current?.querySelector<HTMLHeadingElement>(':scope > :not([hidden]) h1')?.focus());
     };
     window.addEventListener('hashchange', navigate);
+    if (location.hash === '#reference') navigate();
     return () => window.removeEventListener('hashchange', navigate);
   }, []);
 
@@ -122,9 +124,10 @@ export default function App() {
         </section>
       </header>
       <main id="main-content" className="frame main" ref={main} tabIndex={-1}>
-        <ContentBoundary key={page}>
-          {page === 'scan' ? <ScanPage /> : page === 'history' ? <History /> : <Reference />}
-        </ContentBoundary>
+        <div hidden={page !== 'scan'}>
+          <ContentBoundary><ScanPage active={page === 'scan'} /></ContentBoundary>
+        </div>
+        {page === 'history' && <div><ContentBoundary><History /></ContentBoundary></div>}
       </main>
       <footer className="site-footer">
         <div className="frame footer-row">

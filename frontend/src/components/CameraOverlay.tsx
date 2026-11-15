@@ -83,7 +83,7 @@ export function CameraOverlay({ photos, maxPhotos, retaking, onCapture, onRemove
   useEffect(() => {
     const preview = video.current;
     if (!preview) return;
-    let requested: MediaStream | undefined;
+    let stream: MediaStream | undefined;
     let track: MediaStreamTrack | undefined;
     let cancelled = false;
     active.current = true;
@@ -93,21 +93,33 @@ export function CameraOverlay({ photos, maxPhotos, retaking, onCapture, onRemove
     const interrupted = () => {
       if (!cancelled) onDismiss(false, 'The camera disconnected. Open it again or choose photos from your device.');
     };
-    function resumeOnReturn() {
-      if (!document.hidden && track?.readyState === 'live') void preview?.play().catch(interrupted);
+    function stopStream() {
+      stream?.getTracks().forEach(item => item.stop());
+      stream = undefined;
+      if (preview) preview.srcObject = null;
+    }
+    function closeOnExit() {
+      if (cancelled) return;
+      cancelled = true;
+      active.current = false;
+      stopStream();
+      onDismiss(false);
+    }
+    function closeWhenHidden() {
+      if (document.hidden) closeOnExit();
     }
 
     async function start() {
       try {
-        requested = await navigator.mediaDevices.getUserMedia({
+        stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
         });
         if (cancelled || !preview) {
-          requested.getTracks().forEach(item => item.stop());
+          stopStream();
           return;
         }
-        track = requested.getVideoTracks()[0];
+        track = stream.getVideoTracks()[0];
         if (!track || track.readyState === 'ended') {
           interrupted();
           return;
@@ -116,7 +128,7 @@ export function CameraOverlay({ photos, maxPhotos, retaking, onCapture, onRemove
         track.addEventListener('mute', paused);
         track.addEventListener('unmute', resumed);
         track.addEventListener('ended', interrupted);
-        preview.srcObject = requested;
+        preview.srcObject = stream;
         await preview.play();
       } catch (cause) {
         if (cancelled) return;
@@ -127,17 +139,18 @@ export function CameraOverlay({ photos, maxPhotos, retaking, onCapture, onRemove
       }
     }
 
-    document.addEventListener('visibilitychange', resumeOnReturn);
+    document.addEventListener('visibilitychange', closeWhenHidden);
+    window.addEventListener('pagehide', closeOnExit);
     void start();
     return () => {
       cancelled = true;
       active.current = false;
-      document.removeEventListener('visibilitychange', resumeOnReturn);
+      document.removeEventListener('visibilitychange', closeWhenHidden);
+      window.removeEventListener('pagehide', closeOnExit);
       track?.removeEventListener('mute', paused);
       track?.removeEventListener('unmute', resumed);
       track?.removeEventListener('ended', interrupted);
-      requested?.getTracks().forEach(item => item.stop());
-      preview.srcObject = null;
+      stopStream();
     };
   }, [onDismiss]);
 
@@ -207,7 +220,6 @@ export function CameraOverlay({ photos, maxPhotos, retaking, onCapture, onRemove
       onCancel={event => { event.preventDefault(); onDismiss(false); }}>
       <header className="camera-header">
         <h2 id={title}>Label camera</h2>
-        <p className="camera-count" role="status">{photos.length} of {maxPhotos} photos</p>
         <button ref={done} type="button" className="button outline camera-button" aria-label="Done with camera" onClick={() => onDismiss(true)}>Done</button>
       </header>
       <div className="camera-surface">

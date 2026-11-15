@@ -12,6 +12,8 @@ class SaveScan(StrictModel):
 
     @model_validator(mode="after")
     def check_saveable(self) -> "SaveScan":
+        if self.example:
+            raise ValueError("Fictional examples cannot be saved")
         if self.result.readability not in {"readable", "partial"}:
             raise ValueError("Only readable or partially readable scans can be saved")
         if self.result.created_at.utcoffset() is None:
@@ -23,6 +25,7 @@ class SavedScan(BaseModel):
     result: ScanResult
     saved_at: datetime
     example: bool
+    saved_medication: bool = False
 
 
 class SavedScanSummary(BaseModel):
@@ -31,6 +34,7 @@ class SavedScanSummary(BaseModel):
     source_language: SourceLanguage
     saved_at: datetime
     example: bool
+    saved_medication: bool = False
 
 
 class SavedScanPage(BaseModel):

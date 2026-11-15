@@ -74,7 +74,8 @@ test('returns mismatched bottles to photo review without showing combined instru
   await scan.analyze();
   await expect(page.getByRole('heading', { name: 'Scan one bottle at a time' })).toBeFocused();
   await expect(page.getByRole('heading', { name: 'Directions', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Save text to MongoDB' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add to saved medications' })).toHaveCount(0);
+  await expect(page.getByText('Saved to Scan history.')).toHaveCount(0);
   await page.getByRole('button', { name: 'Review photos', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Review your photos' })).toBeFocused();
   await page.getByRole('button', { name: 'Remove photo 2', exact: true }).click();

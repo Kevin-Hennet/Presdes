@@ -76,9 +76,11 @@ class MemoryCollection:
                 if not any(self.matches(record, branch) for branch in value):
                     return False
             elif isinstance(value, dict):
-                if not record[field] < value["$lt"]:
+                if "$lt" in value and not record[field] < value["$lt"]:
                     return False
-            elif record[field] != value:
+                if "$ne" in value and record.get(field) == value["$ne"]:
+                    return False
+            elif record.get(field) != value:
                 return False
         return True
 
@@ -100,12 +102,14 @@ class MemoryCollection:
         self.records.append(record)
         return record
 
-    async def delete_one(self, query):
+    async def update_one(self, query, change):
         record = await self.find_one(query)
         if record is None:
-            return SimpleNamespace(deleted_count=0)
-        self.records.remove(record)
-        return SimpleNamespace(deleted_count=1)
+            return SimpleNamespace(matched_count=0)
+        record.update(change["$set"])
+        for field in change.get("$unset", {}):
+            record.pop(field, None)
+        return SimpleNamespace(matched_count=1)
 
     def find(self, query, projection):
         self.check()
@@ -151,7 +155,8 @@ async def test_explicit_save_reopen_delete_and_isolation(api, scan_text):
     assert "SameSite=strict" in cookie.headers["set-cookie"]
     assert (await establish(first)).headers.get("set-cookie") is None
 
-    first_save = await save(first, scan_text, example=True)
+    assert (await save(first, scan_text, example=True)).status_code == 422
+    first_save = await save(first, scan_text)
     assert first_save.status_code == 200, first_save.text
     assert first_save.headers["cache-control"] == "no-store"
     assert (await save(first, scan_text, example=False)).json() == first_save.json()
@@ -160,11 +165,16 @@ async def test_explicit_save_reopen_delete_and_isolation(api, scan_text):
     assert list(collection.indexes[1]["key"]) == ["owner", "saved_at", "scan_id"]
     assert first.cookies["presdes_history"] not in str(collection.records)
 
+    # A legacy demo record stays readable and keeps its date, but cannot be bookmarked.
+    collection.records[0]["example"] = True
     items = (await first.get(PATH)).json()["items"]
     assert items[0]["name"] == "Pine Sample 5 mg"
     assert items[0]["example"] is True
+    assert items[0]["saved_medication"] is False
+    assert items[0]["saved_at"] == first_save.json()["saved_at"]
     assert "extracted_text" not in str(items)
-    assert (await first.get(url)).json() == first_save.json()
+    assert (await first.get(url)).json() == {**first_save.json(), "example": True}
+    assert (await first.put(url + "/medication", headers=MUTATION)).status_code == 404
 
     await establish(second)
     assert (await second.get(PATH)).json()["items"] == []
@@ -179,6 +189,41 @@ async def test_explicit_save_reopen_delete_and_isolation(api, scan_text):
     assert (await first.delete(url, headers=MUTATION)).status_code == 204
     assert (await first.get(url)).status_code == 404
     assert (await second.get(url)).status_code == 200
+
+
+async def test_bookmark_is_owner_scoped_and_save_retry_preserves_it(api, scan_text):
+    first, second, collection = api
+    await establish(first)
+    await establish(second)
+    url = PATH + "/" + scan_text["id"]
+    results = await asyncio.gather(save(first, scan_text), save(first, scan_text))
+    assert results[0].json() == results[1].json()
+    assert len(collection.records) == 1
+    assert (await first.get(PATH, params={"medications": True})).json()["items"] == []
+    assert (await second.put(url + "/medication", headers=MUTATION)).status_code == 404
+    assert (await first.put(url + "/medication", headers={"Origin": ORIGIN})).status_code == 403
+
+    responses = await asyncio.gather(
+        first.put(url + "/medication", headers=MUTATION),
+        first.put(url + "/medication", headers=MUTATION),
+        save(first, scan_text),
+    )
+    assert [response.status_code for response in responses] == [204, 204, 200]
+    assert responses[0].headers["cache-control"] == "no-store"
+    assert (await save(first, scan_text)).json()["saved_medication"] is True
+    assert (await first.get(url)).json()["saved_medication"] is True
+    assert [item["id"] for item in (await first.get(PATH, params={"medications": True})).json()["items"]] == [scan_text["id"]]
+    assert (await second.delete(url + "/medication", headers=MUTATION)).status_code == 404
+
+    assert (await first.delete(url + "/medication", headers=MUTATION)).status_code == 204
+    assert (await first.get(PATH, params={"medications": True})).json()["items"] == []
+    assert (await first.get(url)).json() == results[0].json()
+    assert (await first.put(url + "/medication", headers=MUTATION)).status_code == 204
+    assert (await first.delete(url, headers=MUTATION)).status_code == 204
+    assert (await first.put(url + "/medication", headers=MUTATION)).status_code == 404
+    assert (await save(first, scan_text)).status_code == 410
+    assert (await first.get(PATH)).json()["items"] == []
+    assert set(collection.records[0]) == {"owner", "scan_id", "deleted"}
 
 
 async def test_cookie_csrf_and_https(api, scan_text):
@@ -233,7 +278,11 @@ async def test_storage_outage_does_not_block_analysis(api, scan_text, monkeypatc
     collection.unavailable = True
     assert (await first.get(PATH)).status_code == 503
 
+    analyses = 0
+
     async def analyze_image(_photo, _language):
+        nonlocal analyses
+        analyses += 1
         return LabelAnalysis.model_validate({
             key: value for key, value in scan_text.items()
             if key not in {"id", "created_at", "explanation_language"}
@@ -241,15 +290,64 @@ async def test_storage_outage_does_not_block_analysis(api, scan_text, monkeypatc
 
     monkeypatch.setattr(scan, "analyze_image", analyze_image)
     monkeypatch.setattr(scan, "prepare_image", lambda raw, _mime: raw)
-    analysis = await first.post("/api/scans", headers={"Content-Type": "image/png"}, content=b"fixture")
+    analysis = await first.post("/api/scans", headers={**MUTATION, "Content-Type": "image/png"}, content=b"fixture")
     assert analysis.status_code == 200
+    assert analysis.headers["x-presdes-history"] == "failed"
     assert analysis.json()["extracted_text"] == scan_text["extracted_text"]
     failure = await save(first, analysis.json())
     assert failure.status_code == 503
     assert "diagnostic" not in failure.text
     assert (await first.get("/api/health")).json()["status"] == "ok"
     collection.unavailable = False
-    assert (await save(first, analysis.json())).status_code == 200
+    retry = await save(first, analysis.json())
+    assert retry.status_code == 200
+    assert retry.json()["result"] == analysis.json()
+    assert len(collection.records) == analyses == 1
+
+
+async def test_browser_analysis_autosaves_only_usable_results(api, scan_text, monkeypatch):
+    first, second, collection = api
+    await establish(first)
+    await establish(second)
+    output = {key: value for key, value in scan_text.items() if key not in {"id", "created_at", "explanation_language"}}
+
+    async def analyze_image(_photo, _language):
+        return LabelAnalysis.model_validate(output)
+
+    monkeypatch.setattr(scan, "analyze_image", analyze_image)
+    monkeypatch.setattr(scan, "prepare_image", lambda raw, _mime: raw)
+    headers = {**MUTATION, "Content-Type": "image/png"}
+    assert (await first.post("/api/scans/preview", headers={**headers, "Content-Type": "image/heic"}, content=b"fixture")).status_code == 200
+    assert (await first.post("/api/scans", headers={**headers, "Origin": "https://other.example"}, content=b"fixture")).status_code == 403
+    assert collection.records == []
+    for readability in ("readable", "partial"):
+        output.update(readability=readability, uncertainties=["A line is hard to read."] if readability == "partial" else [])
+        response = await first.post("/api/scans", headers=headers, content=b"fixture")
+        assert response.status_code == 200
+        assert response.headers["x-presdes-history"] == "saved"
+        assert response.headers["cache-control"] == "no-store"
+        identifier = response.json()["id"]
+        stored = (await first.get(PATH + "/" + identifier)).json()
+        assert stored["result"] == response.json()
+        assert stored["saved_medication"] is False
+        assert (await second.get(PATH + "/" + identifier)).status_code == 404
+    output.update(extracted_text="", explanations=None)
+    for field in ("medication", "directions", "warnings", "printed_dates"):
+        output[field] = {"state": "not_found", "excerpts": []}
+    for readability in ("unreadable", "not_medication_label", "mismatched_labels"):
+        output["readability"] = readability
+        response = await first.post("/api/scans", headers=headers, content=b"fixture")
+        assert response.status_code == 200
+        assert "x-presdes-history" not in response.headers
+
+    async def provider_failure(_photo, _language):
+        raise scan.AnalysisError(503, "Analysis is unavailable.")
+
+    monkeypatch.setattr(scan, "analyze_image", provider_failure)
+    failure = await first.post("/api/scans", headers=headers, content=b"fixture")
+    assert failure.status_code == 503
+    assert "x-presdes-history" not in failure.headers
+    assert len(collection.records) == 2
 
 
 async def test_missing_mongo_configuration(api, monkeypatch):

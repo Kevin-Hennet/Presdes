@@ -1,7 +1,6 @@
 import type { Analysis } from './api/client';
 
 const prefix = 'presdes:scan:v1:';
-const maxSaved = 25;
 
 export function readHistory(): Analysis[] {
   const items: Analysis[] = [];
@@ -14,20 +13,6 @@ export function readHistory(): Analysis[] {
   }
 
   return items.sort((a, b) => b.created_at.localeCompare(a.created_at));
-}
-
-export function saveAnalysis(result: Analysis): void {
-  const key = prefix + result.id;
-  let hasRoom: boolean;
-  try {
-    hasRoom = Boolean(localStorage.getItem(key)) || readHistory().length < maxSaved;
-    if (hasRoom) localStorage.setItem(key, JSON.stringify(result));
-  } catch {
-    throw new Error('Browser storage is unavailable or full.');
-  }
-  if (!hasRoom) {
-    throw new Error('This browser has 25 saved scans. Delete an older scan to make room.');
-  }
 }
 
 export function removeAnalysis(id: string): void {

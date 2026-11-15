@@ -38,6 +38,11 @@ class SavedScanStore:
             await self.collection.create_indexes([
                 IndexModel([("owner", ASCENDING), ("scan_id", ASCENDING)], unique=True),
                 IndexModel([("owner", ASCENDING), *ORDER]),
+                IndexModel(
+                    [("owner", ASCENDING), ("saved_medication", ASCENDING), *ORDER],
+                    name="saved_medications_by_owner",
+                    partialFilterExpression={"saved_medication": True},
+                ),
             ])
             self._indexes_ready = True
 
@@ -47,14 +52,15 @@ class SavedScanStore:
             result=ScanResult.model_validate_json(json.dumps(record["result"])),
             saved_at=record["saved_at"],
             example=record["example"],
+            saved_medication=record.get("saved_medication", False),
         )
 
-    async def save(self, owner: str, data: SaveScan) -> SavedScan:
+    async def save(self, owner: str, data: SaveScan) -> SavedScan | None:
         key = {"owner": owner, "scan_id": str(data.result.id)}
         document = {
             **key,
             "saved_at": datetime.now(timezone.utc),
-            "example": data.example,
+            "example": False,
             "result": data.result.model_dump(mode="json"),
         }
         try:
@@ -65,18 +71,37 @@ class SavedScanStore:
             record = await self.collection.find_one(key)
             if record is None:
                 raise
-        return self.detail(record)
+        return None if record.get("deleted") else self.detail(record)
 
     async def get(self, owner: str, scan_id: UUID) -> SavedScan | None:
-        record = await self.collection.find_one({"owner": owner, "scan_id": str(scan_id)})
+        record = await self.collection.find_one({
+            "owner": owner, "scan_id": str(scan_id), "deleted": {"$ne": True},
+        })
         return self.detail(record) if record is not None else None
 
-    async def delete(self, owner: str, scan_id: UUID) -> bool:
-        deleted = await self.collection.delete_one({"owner": owner, "scan_id": str(scan_id)})
-        return deleted.deleted_count == 1
+    async def set_medication(self, owner: str, scan_id: UUID, saved: bool) -> bool:
+        updated = await self.collection.update_one(
+            {"owner": owner, "scan_id": str(scan_id), "deleted": {"$ne": True}, "example": {"$ne": True}},
+            {"$set": {"saved_medication": saved}},
+        )
+        return updated.matched_count == 1
 
-    async def list(self, owner: str, limit: int, before: tuple[datetime, UUID] | None) -> SavedScanPage:
-        query: dict = {"owner": owner}
+    async def delete(self, owner: str, scan_id: UUID) -> bool:
+        # Keep only the identity so a delayed retry cannot recreate the deleted text.
+        deleted = await self.collection.update_one(
+            {"owner": owner, "scan_id": str(scan_id), "deleted": {"$ne": True}},
+            {"$set": {"deleted": True}, "$unset": {
+                "result": "", "saved_at": "", "example": "", "saved_medication": "",
+            }},
+        )
+        return deleted.matched_count == 1
+
+    async def list(
+        self, owner: str, limit: int, before: tuple[datetime, UUID] | None, medications: bool,
+    ) -> SavedScanPage:
+        query: dict = {"owner": owner, "deleted": {"$ne": True}}
+        if medications:
+            query.update({"saved_medication": True, "example": {"$ne": True}})
         if before:
             saved_at, scan_id = before
             query["$or"] = [
@@ -84,7 +109,7 @@ class SavedScanStore:
                 {"saved_at": saved_at, "scan_id": {"$lt": str(scan_id)}},
             ]
         records = await self.collection.find(query, {
-            "_id": 0, "scan_id": 1, "saved_at": 1, "example": 1,
+            "_id": 0, "scan_id": 1, "saved_at": 1, "example": 1, "saved_medication": 1,
             "result.medication.excerpts": 1, "result.source_language": 1,
         }).sort(ORDER).limit(limit + 1).to_list()
         items = [
@@ -94,6 +119,7 @@ class SavedScanStore:
                 source_language=record["result"]["source_language"],
                 saved_at=record["saved_at"],
                 example=record["example"],
+                saved_medication=record.get("saved_medication", False),
             )
             for record in records[:limit]
         ]

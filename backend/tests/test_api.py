@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import threading
 from datetime import datetime
@@ -114,7 +115,7 @@ async def test_multipart_views_share_one_analysis_request(client, photo, provide
 async def test_batch_validation_rejects_each_bad_photo_and_count(client, photo, provider):
     valid = ("files", ("view.png", photo, "image/png"))
     assert (await client.post("/api/scans", files=[valid] * 5)).status_code == 413
-    unsupported = await client.post("/api/scans", files=[valid, ("files", ("other.gif", photo, "image/gif"))])
+    unsupported = await client.post("/api/scans", files=[valid, ("files", ("other.bmp", photo, "image/bmp"))])
     assert unsupported.status_code == 415
     assert "Photo 2" in unsupported.json()["detail"]
     broken = await client.post("/api/scans", files=[valid, ("files", ("other.png", b"corrupt", "image/png"))])
@@ -263,7 +264,8 @@ async def test_scan_rejects_invalid_options(client, photo, provider, query):
 
 
 async def test_rejects_invalid_input_and_enforces_body_limit(client, photo, provider, monkeypatch):
-    assert (await analyze(client, photo, mime="image/gif")).status_code == 415
+    assert (await analyze(client, photo, mime="image/bmp")).status_code == 415
+    assert (await analyze(client, photo, mime="image/gif")).status_code == 422
     assert (await analyze(client, photo, mime="image/jpeg")).status_code == 422
     assert (await analyze(client, b"this is not an image")).status_code == 422
     assert (await analyze(client, b"")).status_code == 422
@@ -280,6 +282,42 @@ async def test_rejects_invalid_input_and_enforces_body_limit(client, photo, prov
     response = await analyze(client, oversized_chunks())
     assert response.status_code == 413
     assert reads == [0, 1]
+    provider.assert_not_awaited()
+
+
+@pytest.mark.parametrize("multipart", [False, True])
+async def test_still_gif_preserves_full_frame_and_flattens_transparency(client, provider, multipart):
+    frame = Image.new("P", (600, 638), 0)
+    frame.putpalette([0, 0, 0, 0, 0, 0] + [0] * 762)
+    frame.paste(1, (20, 20, 580, 50))
+    frame.paste(1, (20, 588, 580, 618))
+    output = BytesIO()
+    frame.save(output, "GIF", transparency=0)
+    raw = output.getvalue()
+    if multipart:
+        response = await client.post("/api/scans", files=[("files", ("label.gif", raw, "image/gif"))])
+    else:
+        response = await analyze(client, raw, mime="image/gif")
+    assert response.status_code == 200, response.text
+    content = provider.await_args.kwargs["input"][0]["content"]
+    payload = base64.b64decode(content[1]["image_url"].split(",", 1)[1])
+    with Image.open(BytesIO(payload)) as normalized:
+        assert normalized.format == "JPEG"
+        assert normalized.size == (600, 638)
+        assert min(normalized.getpixel((300, 300))) > 245
+        assert max(normalized.getpixel((300, 35))) < 10
+        assert max(normalized.getpixel((300, 603))) < 10
+
+
+async def test_animated_and_corrupt_gif_fail_before_provider(client, provider):
+    output = BytesIO()
+    Image.new("RGB", (20, 30), "white").save(
+        output, "GIF", save_all=True, append_images=[Image.new("RGB", (20, 30), "black")],
+    )
+    response = await analyze(client, output.getvalue(), mime="image/gif")
+    assert response.status_code == 422
+    assert "Save the frame" in response.json()["detail"]
+    assert (await analyze(client, b"GIF89a broken", mime="image/gif")).status_code == 422
     provider.assert_not_awaited()
 
 

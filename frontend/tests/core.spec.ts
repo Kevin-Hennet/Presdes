@@ -14,12 +14,31 @@ const fixture = {
   },
 };
 
-test('scans a fixture and saves, reopens and deletes text on this browser', async ({ page }) => {
+test('previews a still GIF and submits its original bytes for analysis', async ({ page }) => {
+  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  await page.route('**/api/scans?*', async route => {
+    expect(route.request().headers()['content-type']).toBe('image/gif');
+    expect(route.request().postDataBuffer()).toEqual(gif);
+    await route.fulfill({ json: fixture });
+  });
+  const scan = new ScanPage(page);
+  await scan.open();
+  await expect(page.getByLabel('Photo file', { exact: true })).toHaveAttribute('accept', /image\/gif/);
+  await page.getByLabel('Photo file', { exact: true }).setInputFiles({name:'label.gif', mimeType:'image/gif', buffer:gif});
+  const preview = page.getByRole('img', { name: 'Medication label photo selected for analysis' });
+  await expect(preview).toBeVisible();
+  await expect.poll(() => preview.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(1);
+  await scan.analyze();
+  await expect(page.getByRole('heading', { name: 'Read your label' })).toBeVisible();
+});
+
+test('scans a fixture and switches the explanation language and reading level', async ({ page }) => {
+  await page.route('**/api/saved-scans/session', route => route.fulfill({ status: 204 }));
   await page.route('**/api/scans?*', async route => {
     expect(route.request().url()).toContain('language=es');
     expect(route.request().headers()['content-type']).toBe('image/png');
     expect(route.request().postDataBuffer()).toEqual(await readFile(fictionalPhoto));
-    await route.fulfill({ json: fixture });
+    await route.fulfill({ json: fixture, headers: { 'X-PresDes-History': 'saved' } });
   });
   const scan = new ScanPage(page);
   await scan.open();
@@ -28,6 +47,8 @@ test('scans a fixture and saves, reopens and deletes text on this browser', asyn
   await page.getByLabel('Explanation language').selectOption('es');
   await scan.analyze();
   await expect(page.getByRole('heading', { name: 'Read your label' })).toBeFocused();
+  const resultSections = page.getByRole('main').getByRole('heading', { level: 2 });
+  await expect(resultSections.first()).toHaveText('AI explanation');
   await page.getByRole('button', { name: 'View source photo' }).click();
   await expect(page.getByRole('img', { name: 'Medication label photo used for this analysis' })).toBeVisible();
   await expect(page.getByText(fixture.directions.excerpts[0], { exact: true })).toBeVisible();
@@ -36,39 +57,30 @@ test('scans a fixture and saves, reopens and deletes text on this browser', asyn
   await page.getByLabel('Reading level').selectOption('detailed');
   await expect(page.getByText(fixture.explanations.detailed)).toBeVisible();
   expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('presdes:scan:')))).toEqual([]);
-
-  await page.getByRole('button', { name: 'Save text on this browser' }).click();
-  await expect(page.getByText('Scan text saved on this browser.')).toBeVisible();
-  await page.getByRole('link', { name: 'Saved scans' }).click();
-  await expect(page.getByRole('heading', { name: 'Saved scans', exact: true })).toBeFocused();
-  await page.reload();
-  await page.getByRole('button', { name: 'Open saved scan for Pine Sample 5 mg' }).click();
-  await expect(page.getByText('Saved scans contain text only.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'View source photo' })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Open full-size photo (new tab)' })).toHaveCount(0);
-  await expect(page.getByText(fixture.explanations.simple)).toBeVisible();
-  await page.getByRole('button', { name: 'Back to saved scans' }).click();
-  await expect(page.getByRole('button', { name: 'Open saved scan for Pine Sample 5 mg' })).toBeFocused();
-  await page.getByRole('button', { name: 'Delete saved scan for Pine Sample 5 mg' }).click();
-  await expect(page.getByRole('heading', { name: 'No saved scans yet' })).toBeVisible();
 });
 
-test('keeps the result on screen when local storage cannot save', async ({ page }) => {
-  await page.addInitScript(() => {
-    const original = Storage.prototype.setItem;
-    Storage.prototype.setItem = function (key, value) {
-      if (key.startsWith('presdes:scan:')) throw new DOMException('Quota full', 'QuotaExceededError');
-      return original.call(this, key, value);
-    };
+test('opens and explicitly deletes a legacy browser scan without uploading it', async ({ page }) => {
+  const key = 'presdes:scan:v1:' + fixture.id;
+  await page.addInitScript(({ key, fixture }) => localStorage.setItem(key, JSON.stringify(fixture)), { key, fixture });
+  await page.route('**/api/saved-scans**', route => {
+    expect(route.request().method()).toBe('GET');
+    return route.fulfill({ json: { items: [], next_before: null } });
   });
-  await page.route('**/api/scans?*', route => route.fulfill({ json: fixture }));
-  const scan = new ScanPage(page);
-  await scan.open();
-  await scan.choosePhoto();
-  await scan.analyze();
-  await page.getByRole('button', { name: 'Save text on this browser' }).click();
-  await expect(page.getByRole('alert')).toContainText('Scan not saved');
-  await expect(page.getByText(fixture.directions.excerpts[0], { exact: true })).toBeVisible();
+  await page.goto('/#history');
+  await page.getByRole('button', { name: 'Legacy browser history' }).click();
+  const open = page.getByRole('button', { name: 'Open saved scan for Pine Sample 5 mg' });
+  await open.click();
+  await expect(page.getByText('From legacy history on this browser.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('heading', { level: 2 }).first()).toHaveText('AI explanation');
+  await expect(page.getByRole('button', { name: 'Add to saved medications' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'View source photo' })).toHaveCount(0);
+  await expect(page.getByText(fixture.explanations.simple)).toBeVisible();
+  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(JSON.stringify(fixture));
+  await page.getByRole('button', { name: 'Back to list' }).click();
+  await expect(open).toBeFocused();
+  await page.getByRole('button', { name: 'Delete scan from history for Pine Sample 5 mg' }).click();
+  await expect(page.getByRole('heading', { name: 'No legacy browser scans' })).toBeVisible();
+  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBeNull();
 });
 
 test('invalidates responses from a photo replaced during analysis', async ({ page }) => {
@@ -135,8 +147,9 @@ test('can retry a failed scan and retake an unreadable image', async ({ page }) 
   await expect(page.getByRole('alert')).toContainText('Analysis took too long');
   await scan.analyze();
   await expect(page.getByRole('heading', { name: 'This label is unreadable' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'AI explanation', exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Directions', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'New photo' }).click();
+  await page.getByRole('button', { name: 'New scan', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Scan a medication label' })).toBeFocused();
   await scan.choosePhoto();
   await expect(page.getByRole('heading', { name: 'Review your photo' })).toBeVisible();
@@ -207,7 +220,7 @@ test('speaks the selected result language, handles errors and cancels on navigat
   await expect(page.getByRole('button', { name: 'Listen to explanation', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Listen to directions', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-spoken', 'en-US|' + fixture.directions.excerpts[0]);
-  await page.getByRole('link', { name: 'Saved scans' }).click();
+  await page.getByRole('link', { name: 'Saved medications' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-speech-cancels', '2');
 });
 
@@ -284,11 +297,14 @@ test('announces uncertain or missing label text and speaks any excerpt in its so
 });
 
 test('opens and closes the source photo from the results heading with the keyboard', async ({ page }) => {
+  await page.route('**/api/saved-scans/session', route => route.fulfill({ status: 204 }));
+  await page.route('**/api/scans?*', route => route.fulfill({ json: exampleAnalysis, headers: { 'X-PresDes-History': 'saved' } }));
   await page.goto('/#scan');
-  await page.getByRole('button', { name: 'Try fictional example' }).click();
-  await expect(page.getByText('Fictional example · prepared result')).toBeVisible();
+  const scan = new ScanPage(page);
+  await scan.choosePhoto();
+  await scan.analyze();
   await expect(page.getByRole('heading', { name: 'Read your label' })).toBeFocused();
-  const photo = page.getByRole('img', { name: 'Fictional Pine Sample training label' });
+  const photo = page.getByRole('img', { name: 'Medication label photo used for this analysis' });
   await expect(photo).toBeHidden();
   await page.keyboard.press('Tab');
   const toggle = page.getByRole('button', { name: /^(View|Hide) source photo$/ });
@@ -302,9 +318,15 @@ test('opens and closes the source photo from the results heading with the keyboa
   const fullSize = page.getByRole('link', { name: 'Open full-size photo (new tab)' });
   await expect(fullSize).toBeFocused();
   await expect(fullSize).toHaveAttribute('target', '_blank');
-  await expect(fullSize).toHaveAttribute('href', '/fictional-label.png');
+  await expect(fullSize).toHaveAttribute('href', (await photo.getAttribute('src'))!);
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('button', { name: 'Listen to medication on label' })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Add to saved medications', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Listen to explanation', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByLabel('Reading level')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Shift+Tab');
   await expect(toggle).toBeFocused();
@@ -315,26 +337,20 @@ test('opens and closes the source photo from the results heading with the keyboa
   await expect(page).toHaveURL('/#scan');
 });
 
-test('separates FDA lookup failures from no matches and links the exact record', async ({ page }) => {
-  const url = 'https://api.fda.gov/drug/label.json?search=id%3A10afb12c-295a-4820-9b21-116230bae821&limit=1';
-  await page.route('**/api/labels?*', route => {
-    const name = new URL(route.request().url()).searchParams.get('name');
-    if (name === 'Unknown Demo') return route.fulfill({ json: { matches: [] } });
-    if (name === 'Unavailable Demo') return route.fulfill({ status: 502, json: { detail: 'The FDA label service is unavailable.' } });
-    return route.fulfill({ json: { matches: [{ name: 'Pine Sample', manufacturer: 'Fictional Maker', source_url: url }] } });
-  });
+test('opens Scan for old FDA reference links', async ({ page }) => {
+  const navigation = page.getByRole('navigation', { name: 'Main navigation' });
+  const scanHeading = page.getByRole('heading', { name: 'Scan a medication label' });
   await page.goto('/#reference');
-  const name = page.getByLabel('Medication name');
-  const submit = page.getByRole('button', { name: 'Search labels' });
-  await name.fill('Unknown Demo');
-  await submit.click();
-  await expect(page.getByRole('status')).toContainText('No label records found');
-  await name.fill('Unavailable Demo');
-  await submit.click();
-  await expect(page.getByRole('alert')).toContainText('FDA label service is unavailable');
-  await name.fill('Pine Sample');
-  await submit.click();
-  await expect(page.getByRole('link', { name: 'Open FDA record for Pine Sample (new tab)' })).toHaveAttribute('href', url);
+  await expect(page).toHaveURL('/#scan');
+  await expect(scanHeading).toBeVisible();
+  await expect(navigation.getByRole('link')).toHaveText(['Scan', 'Saved medications']);
+  await expect(navigation.getByRole('link', { name: 'Scan', exact: true })).toHaveAttribute('aria-current', 'page');
+
+  await navigation.getByRole('link', { name: 'Saved medications', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Saved medications', exact: true })).toBeVisible();
+  await page.evaluate(() => { location.hash = 'reference'; });
+  await expect(page).toHaveURL('/#scan');
+  await expect(scanHeading).toBeFocused();
 });
 
 test('enlarges result text and fits the expanded photo at mobile and desktop widths in every palette', async ({ page }) => {
@@ -352,7 +368,15 @@ test('enlarges result text and fits the expanded photo at mobile and desktop wid
   await expect(page.getByRole('main')).toBeFocused();
   await scan.choosePhoto();
   await scan.analyze();
-  await expect(page.getByRole('heading', { name: 'What may be unclear' })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toHaveText([
+    'What may be unclear',
+    'AI explanation',
+    'Medication on label',
+    'Directions',
+    'Printed warnings',
+    'Printed expiration or discard dates',
+    'Full extracted label',
+  ]);
   await page.getByRole('button', { name: 'View source photo' }).click();
   const excerpts = page.getByRole('blockquote');
   const transcript = page.getByText(exampleAnalysis.extracted_text, { exact: true });

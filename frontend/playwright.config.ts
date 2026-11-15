@@ -18,7 +18,7 @@ export default defineConfig({
     { name: 'chromium' },
     {
       name: 'iphone-webkit',
-      testMatch: '**/camera-overlay.spec.ts',
+      testMatch: ['**/camera-overlay.spec.ts', '**/heic.spec.ts', '**/scan-workspace.spec.ts'],
       use: {
         ...devices['iPhone 15'],
         browserName: 'webkit',

@@ -2,11 +2,14 @@ import warnings
 from io import BytesIO
 
 from PIL import Image, ImageOps, UnidentifiedImageError
+from pillow_heif import register_heif_opener
+
+register_heif_opener(thumbnails=False, depth_images=False, aux_images=False)
 
 MAX_UPLOAD_BYTES = 12 * 1024 * 1024
-MAX_PIXELS = 24_000_000
+MAX_PIXELS = 50_000_000
 MAX_IMAGE_EDGE = 4096
-FORMATS = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}
+FORMATS = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP", "image/gif": "GIF", "image/heic": "HEIF", "image/heif": "HEIF"}
 
 
 class InvalidImage(ValueError):
@@ -22,9 +25,10 @@ def prepare_image(raw: bytes, mime_type: str) -> bytes:
                 if image.format != FORMATS[mime_type]:
                     raise InvalidImage("The file contents do not match its image type.")
                 if image.width * image.height > MAX_PIXELS:
-                    raise InvalidImage("The photo exceeds 24 megapixels. Use a smaller photo.")
-                if getattr(image, "n_frames", 1) != 1:
-                    raise InvalidImage("Upload a single still photo.")
+                    raise InvalidImage("The photo exceeds 50 megapixels. Use a smaller photo.")
+                # HEIF containers may include extra images; the plugin opens the primary still.
+                if image.format != "HEIF" and getattr(image, "n_frames", 1) != 1:
+                    raise InvalidImage("Animated images are not supported. Save the frame showing the complete label as a still image and upload that instead.")
                 image.verify()
             with Image.open(BytesIO(raw)) as image:
                 oriented = ImageOps.exif_transpose(image)
@@ -36,8 +40,8 @@ def prepare_image(raw: bytes, mime_type: str) -> bytes:
                 jpeg.save(output, "JPEG", quality=94)
                 return output.getvalue()
     except (Image.DecompressionBombWarning, Image.DecompressionBombError) as exc:
-        raise InvalidImage("The photo exceeds 24 megapixels. Use a smaller photo.") from exc
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as exc:
+        raise InvalidImage("The photo exceeds 50 megapixels. Use a smaller photo.") from exc
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError, EOFError, RuntimeError) as exc:
         if isinstance(exc, InvalidImage):
             raise
-        raise InvalidImage("This photo could not be opened. Choose another JPG, PNG, or WebP.") from exc
+        raise InvalidImage("This photo could not be opened. Choose another JPG, PNG, WebP, still GIF, HEIC, or HEIF.") from exc

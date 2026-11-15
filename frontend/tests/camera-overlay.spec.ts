@@ -135,7 +135,7 @@ test('keeps a full-screen preview and bottom thumbnails through capture, review,
   expect(previewBounds.height).toBeGreaterThan(dialogBounds.height / 2);
   expect(stripBounds.y).toBeGreaterThan(previewBounds.y + previewBounds.height);
   await capture.click();
-  await expect(camera.getByText('2 of 4 photos', { exact: true })).toBeVisible();
+  await expect(thumbs.getByRole('button')).toHaveCount(2);
   await assertCaptureCrop(page, preview);
 
   await page.setViewportSize({ width: 844, height: 390 });
@@ -143,10 +143,9 @@ test('keeps a full-screen preview and bottom thumbnails through capture, review,
   await insideViewport(done, page);
   await insideViewport(thumbs, page);
   await capture.click();
-  await expect(camera.getByText('3 of 4 photos', { exact: true })).toBeVisible();
+  await expect(thumbs.getByRole('button')).toHaveCount(3);
   await assertCaptureCrop(page, preview);
   await capture.click();
-  await expect(camera.getByText('4 of 4 photos', { exact: true })).toBeVisible();
   await expect(capture).toBeDisabled();
   await expect(thumbs.getByRole('button')).toHaveCount(4);
   for (const thumb of await thumbs.getByRole('button').all()) await insideViewport(thumb, page);
@@ -176,7 +175,7 @@ test('keeps a full-screen preview and bottom thumbnails through capture, review,
   await expect(thumbs.getByRole('button')).toHaveCount(4);
   await thumbs.getByRole('button', { name: 'Review photo 3' }).click();
   await camera.getByRole('button', { name: 'Remove photo 3' }).click();
-  await expect(camera.getByText('3 of 4 photos', { exact: true })).toBeVisible();
+  await expect(thumbs.getByRole('button')).toHaveCount(3);
   await expect(capture).toBeEnabled();
   await done.click();
   await expect(page.getByRole('button', { name: 'Analyze label' })).toBeEnabled();
@@ -215,4 +214,23 @@ test('contains keyboard focus, locks page scroll and releases the camera on Esca
   await expect(open).toBeFocused();
   await expect(page.locator('html')).toHaveAttribute('data-camera-stops', '2');
   await expect(page.getByRole('button', { name: 'Analyze label' })).toBeEnabled();
+});
+
+test('backgrounding closes the camera and keeps selected photos available', async ({ page }) => {
+  await simulateCamera(page);
+  const scan = new ScanPage(page);
+  await scan.open();
+  await scan.choosePhoto();
+  await page.getByRole('button', { name: 'Open camera', exact: true }).click();
+  const camera = page.getByRole('dialog', { name: 'Label camera', exact: true });
+  await expect(camera.getByRole('button', { name: 'Capture photo', exact: true })).toBeEnabled();
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(camera).toHaveCount(0);
+  await expect(page.locator('html')).toHaveAttribute('data-camera-stops', '1');
+  await expect(page.getByRole('heading', { name: 'Review your photo', exact: true })).toBeVisible();
 });

@@ -9,7 +9,11 @@ from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException, MultiPartParser
 
 from app.ai.openai_vision import AnalysisError, analyze_image
+from app.config import settings
+from app.models.saved_scans import SaveScan
 from app.models.schemas import ScanOptions, ScanResult
+from app.routers.saved_scans import MAX_SAVE_BYTES, storage
+from app.saved_scan_session import require_same_origin, session_owner
 from app.services.images import FORMATS, MAX_UPLOAD_BYTES, InvalidImage, prepare_image
 
 router = APIRouter(prefix="/api/scans", tags=["scans"])
@@ -34,7 +38,7 @@ async def bounded_body(request: Request, limit: int, message: str) -> AsyncItera
 
 async def validate_image(raw: bytes, mime: str, subject: str) -> bytes:
     if mime not in FORMATS:
-        raise HTTPException(415, f"{subject} must be JPG, PNG, or WebP.")
+        raise HTTPException(415, f"{subject} must be JPG, PNG, WebP, still GIF, HEIC, or HEIF.")
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, f"{subject} exceeds 12 MB. Choose a smaller photo.")
     try:
@@ -47,7 +51,7 @@ async def read_photos(request: Request) -> list[bytes]:
     mime = media_type(request.headers.get("content-type"))
     if mime != "multipart/form-data":
         if mime not in FORMATS:
-            raise HTTPException(415, "Upload a JPG, PNG, or WebP photo.")
+            raise HTTPException(415, "Upload a JPG, PNG, WebP, still GIF, HEIC, or HEIF photo.")
         raw = bytearray()
         async for chunk in bounded_body(request, MAX_UPLOAD_BYTES, "The photo exceeds 12 MB. Choose a smaller photo."):
             raw.extend(chunk)
@@ -79,6 +83,19 @@ async def read_photos(request: Request) -> list[bytes]:
         await form.close()
 
 
+@router.post("/preview")
+async def preview_photo(request: Request) -> Response:
+    """Create a browser-readable preview in memory without invoking AI or storing it."""
+    mime = media_type(request.headers.get("content-type"))
+    if mime not in {"image/heic", "image/heif"}:
+        raise HTTPException(415, "Preview conversion accepts HEIC or HEIF photos.")
+    raw = bytearray()
+    async for chunk in bounded_body(request, MAX_UPLOAD_BYTES, "The photo exceeds 12 MB. Choose a smaller photo."):
+        raw.extend(chunk)
+    jpeg = await validate_image(bytes(raw), mime, "The photo")
+    return Response(jpeg, media_type="image/jpeg", headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+
 @router.post("", response_model=ScanResult)
 async def create_scan(
     request: Request,
@@ -86,6 +103,9 @@ async def create_scan(
     options: Annotated[ScanOptions, Query()],
 ) -> ScanResult:
     """Analyze one raw image or up to four multipart views of one medication label."""
+    save_to_history = "x-presdes-request" in request.headers
+    if save_to_history:
+        require_same_origin(request)
     images = await read_photos(request)
     try:
         result = await analyze_image(images, options.language)
@@ -93,9 +113,24 @@ async def create_scan(
         raise HTTPException(exc.status_code, exc.detail) from exc
 
     response.headers["Cache-Control"] = "no-store"
-    return ScanResult(
+    analysis = ScanResult(
         id=uuid4(),
         created_at=datetime.now(timezone.utc),
         explanation_language=options.language,
         **result.model_dump(),
     )
+    if save_to_history and analysis.readability in {"readable", "partial"}:
+        response.headers["X-PresDes-History"] = "failed"
+        owner = session_owner(request) if settings.mongo_configured else None
+        if owner is not None:
+            data = SaveScan(result=analysis)
+            if len(data.model_dump_json().encode()) <= MAX_SAVE_BYTES:
+                try:
+                    async with storage(request) as store:
+                        saved = await store.save(owner, data)
+                    if saved is not None:
+                        response.headers["X-PresDes-History"] = "saved"
+                except HTTPException:
+                    # A storage failure must not discard usable analysis.
+                    pass
+    return analysis

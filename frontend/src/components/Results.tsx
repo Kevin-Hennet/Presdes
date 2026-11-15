@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowLeft, Bookmark, CalendarDays, ClipboardList, FileText, Image, ShieldAlert, type LucideIcon } from 'lucide-react';
-import { languages, saveMongoScan, type Analysis, type PrintedSection, type SourceLanguage } from '../api/client';
-import { saveAnalysis } from '../history';
+import { ApiError, getHistoryScan, languages, retrySaveScan, setSavedMedication, type Analysis, type PrintedSection, type SourceLanguage } from '../api/client';
+import type { ResultView } from '../scan-workspace';
 import { SpeechButton, useSpeech, type SpeechPart } from './Speech';
 
 type LabelSection = {
@@ -87,63 +87,123 @@ type ResultsProps = {
   example?: boolean;
   onBack: () => void;
   onReviewPhotos?: () => void;
-  saved?: 'browser' | 'mongodb';
+  saved?: 'browser' | 'history';
+  medicationSaved?: boolean;
+  onMedicationChange?: (saved: boolean) => void;
+  workspaceView?: ResultView;
+  onWorkspaceViewChange?: (id: string, change: Partial<ResultView>, expected?: ResultView) => void;
+  reconcileHistory?: boolean;
 };
 
-export function Results({ result, photos, example = false, onBack, onReviewPhotos, saved }: ResultsProps) {
+export function Results({
+  result, photos, example = false, onBack, onReviewPhotos, saved,
+  medicationSaved = false, onMedicationChange,
+  workspaceView, onWorkspaceViewChange, reconcileHistory = false,
+}: ResultsProps) {
   const heading = useRef<HTMLHeadingElement>(null);
-  const pendingMongoSave = useRef<AbortController | null>(null);
+  const medicationButton = useRef<HTMLButtonElement>(null);
+  const retryButton = useRef<HTMLButtonElement>(null);
+  const pendingUpdate = useRef(false);
   const speech = useSpeech();
-  const [level, setLevel] = useState<'simple' | 'detailed'>('simple');
-  const [saveState, setSaveState] = useState<'idle' | 'saved' | 'failed'>(saved ? 'saved' : 'idle');
-  const [saveError, setSaveError] = useState('');
-  const [mongoSaved, setMongoSaved] = useState(false);
-  const [mongoSaving, setMongoSaving] = useState(false);
-  const [mongoError, setMongoError] = useState('');
+  const [savedView, setSavedView] = useState<ResultView>({
+    level: 'simple', history: saved === 'history' ? 'saved' : 'unsaved', medicationSaved,
+  });
+  const view = workspaceView ?? savedView;
+  const latestView = useRef(view);
+  const { level, history, medicationSaved: isMedication } = view;
+  const [checkAttempts, setCheckAttempts] = useState(0);
+  const [checking, setChecking] = useState(reconcileHistory);
+  const [checkFailed, setCheckFailed] = useState(false);
+  const [updating, setUpdating] = useState<'retry' | 'medication' | null>(null);
+  const [historyError, setHistoryError] = useState('');
   const source = result.source_language;
   const language = result.explanation_language;
   const usable = result.readability === 'readable' || result.readability === 'partial';
   const mismatch = result.readability === 'mismatched_labels';
   const evidence = photos ? (photos.length > 1 ? 'these photos' : 'this photo') : 'the scan';
-  const canSave = usable && !saved;
+  const canBookmark = usable && !example && saved !== 'browser';
   const uncertainties = result.uncertainties.join('\n');
 
   useEffect(() => { heading.current?.focus(); }, []);
-  useEffect(() => () => pendingMongoSave.current?.abort(), []);
-
-  function save() {
-    try {
-      saveAnalysis(result);
-      setSaveState('saved');
-    } catch (error) {
-      setSaveState('failed');
-      setSaveError(error instanceof Error ? error.message : 'This browser could not save the scan.');
+  useEffect(() => { latestView.current = view; }, [view]);
+  useEffect(() => {
+    if (!onWorkspaceViewChange || !canBookmark) return;
+    function checkAfterRestore(event: PageTransitionEvent) {
+      if (event.persisted) setCheckAttempts(attempts => attempts + 1);
     }
+    window.addEventListener('pageshow', checkAfterRestore);
+    return () => window.removeEventListener('pageshow', checkAfterRestore);
+  }, [canBookmark, onWorkspaceViewChange]);
+
+  useEffect(() => {
+    if (!canBookmark || !onWorkspaceViewChange || (!reconcileHistory && checkAttempts === 0)) return;
+    const controller = new AbortController();
+    const expected = latestView.current;
+    setChecking(true);
+    setCheckFailed(false);
+    void getHistoryScan(result.id, controller.signal).then(record => {
+      if (!controller.signal.aborted) {
+        if (record.result.id !== result.id) throw new Error('Unexpected scan ID');
+        onWorkspaceViewChange(result.id, { history: 'saved', medicationSaved: record.saved_medication === true }, expected);
+      }
+    }).catch(cause => {
+      if (controller.signal.aborted) return;
+      if (cause instanceof ApiError && (cause.status === 404 || cause.status === 410)) {
+        if (expected.history !== 'unsaved' || cause.status === 410) {
+          onWorkspaceViewChange(result.id, { history: 'missing', medicationSaved: false }, expected);
+        }
+      } else {
+        setCheckFailed(true);
+      }
+    }).finally(() => {
+      if (!controller.signal.aborted) setChecking(false);
+    });
+    return () => controller.abort();
+  }, [canBookmark, checkAttempts, onWorkspaceViewChange, reconcileHistory, result.id]);
+
+  function changeView(change: Partial<ResultView>) {
+    if (onWorkspaceViewChange) onWorkspaceViewChange(result.id, change);
+    else setSavedView(previous => ({ ...previous, ...change }));
   }
 
-  async function saveToMongo() {
-    if (pendingMongoSave.current || mongoSaved) return;
-    const controller = new AbortController();
-    pendingMongoSave.current = controller;
-    setMongoSaving(true);
-    setMongoError('');
+  async function updateHistory(action: 'retry' | 'medication') {
+    if (pendingUpdate.current || checking || checkFailed || history === 'missing') return;
+    pendingUpdate.current = true;
+    setUpdating(action);
+    setHistoryError('');
+    let confirmed = history === 'saved';
     try {
-      await saveMongoScan(result, example, controller.signal);
-      if (!controller.signal.aborted) setMongoSaved(true);
+      if (!confirmed) {
+        const record = await retrySaveScan(result);
+        if (action === 'retry' && document.activeElement === retryButton.current) {
+          requestAnimationFrame(() => medicationButton.current?.focus());
+        }
+        changeView({ history: 'saved', medicationSaved: record.saved_medication });
+        confirmed = true;
+      }
+      if (action === 'medication') {
+        const next = !isMedication;
+        await setSavedMedication(result.id, next);
+        changeView({ medicationSaved: next });
+        onMedicationChange?.(next);
+      }
     } catch (cause) {
-      if (!controller.signal.aborted) {
-        setMongoError(cause instanceof Error ? cause.message : 'Try again later.');
+      if (cause instanceof ApiError && (cause.status === 410 || (confirmed && cause.status === 404))) {
+        changeView({ history: 'missing', medicationSaved: false });
+        onMedicationChange?.(false);
+      } else if (confirmed) {
+        setHistoryError(isMedication ? 'Could not remove this medication. Try again.' : 'Could not add this medication. Try again.');
       }
     } finally {
-      pendingMongoSave.current = null;
-      if (!controller.signal.aborted) setMongoSaving(false);
+      pendingUpdate.current = false;
+      setUpdating(null);
     }
   }
 
   return (
     <>
       <button type="button" className="button plain back" onClick={onBack}>
-        <ArrowLeft size={19} aria-hidden="true" /> {saved ? 'Back to saved scans' : photos && photos.length > 1 ? 'New scan' : 'New photo'}
+        <ArrowLeft size={19} aria-hidden="true" /> {saved ? 'Back to list' : 'New scan'}
       </button>
       <div className="page-intro">
         <p className="eyebrow">{example ? 'Fictional example · prepared result' : saved ? 'Saved scan' : 'Scan result'}</p>
@@ -160,93 +220,96 @@ export function Results({ result, photos, example = false, onBack, onReviewPhoto
         </p>
         {mismatch && onReviewPhotos && <button className="button primary" type="button" onClick={onReviewPhotos}>Review photos</button>}
         {photos?.length ? <SourcePhotos photos={photos} /> : null}
-        {saved && <p className="muted">
-          Saved scans contain text only. {saved === 'mongodb' ? 'Stored in MongoDB for this browser session.' : 'Stored on this browser.'}
-        </p>}
+        {canBookmark && checking && <p className="muted" role="status">Checking Scan history…</p>}
+        {canBookmark && checkFailed && (
+          <div className="button-row">
+            <p className="muted" role="status">Could not check Scan history.</p>
+            <button className="button plain" type="button" onClick={() => setCheckAttempts(attempts => attempts + 1)}>Retry history check</button>
+          </div>
+        )}
+        {canBookmark && !checking && !checkFailed && history === 'missing' && (
+          <p className="muted" role="status">This scan is no longer in Scan history.</p>
+        )}
+        {canBookmark && !checking && !checkFailed && history !== 'missing' && (
+          <div className="button-row">
+            <button ref={medicationButton} type="button" className="button outline" aria-disabled={updating !== null}
+              onClick={() => void updateHistory('medication')}>
+              <Bookmark size={19} aria-hidden="true" />
+              {updating === 'medication' ? (isMedication ? 'Removing medication…' : 'Adding medication…')
+                : isMedication ? 'Remove from saved medications' : 'Add to saved medications'}
+            </button>
+            <p className="muted" role="status">{isMedication ? 'Added to saved medications' : ''}</p>
+          </div>
+        )}
+        {canBookmark && !saved && !checking && !checkFailed && history !== 'missing' && (
+          <div className="button-row">
+            <p className="muted" role="status">{history === 'saved' ? 'Saved to Scan history.'
+              : updating ? 'Saving this scan…' : 'Could not save this scan.'}</p>
+            {history === 'unsaved' && <button ref={retryButton} type="button" className="button plain" aria-disabled={updating !== null}
+              onClick={() => void updateHistory('retry')}>Retry saving scan</button>}
+          </div>
+        )}
+        {historyError && <p className="notice" role="status">{historyError}</p>}
+        {saved && <p className="muted">Saved scans contain text only. {saved === 'browser' ? 'From legacy history on this browser.' : ''}</p>}
       </div>
       <p className="sr-only" role="status">
         {usable ? 'Label analysis ready.' : mismatch ? 'Analysis complete. Scan each bottle separately.' : 'Analysis complete. A new photo is needed.'}
       </p>
-      <div className={canSave ? 'result-layout' : 'result-stack'}>
-        <div className="result-stack">
-          {(usable || uncertainties) && !speech.supported && <p className="notice">Read-aloud is unavailable in this browser.</p>}
-          {speech.error && <p className="notice" role="alert">{speech.error}</p>}
-          {uncertainties && (
-            <section className="notice" aria-labelledby="uncertainties">
-              <div className="section-header">
-                <h2 id="uncertainties">What may be unclear</h2>
-                <SpeechButton speech={speech} section="what may be unclear" parts={[{ text: uncertainties, language }]} />
-              </div>
-              <ul lang={language} dir="auto">
-                {result.uncertainties.map((item, index) => <li key={index}>{item}</li>)}
-              </ul>
-            </section>
-          )}
-          {usable && (
-            <>
-              {(Object.keys(labelSections) as Array<keyof typeof labelSections>).map(key => (
-                <PrintedLabelSection key={key} {...labelSections[key]} section={result[key]} language={source} speech={speech} evidence={evidence} />
-              ))}
-              <section className="card result-section">
+      <div className="result-stack">
+        {(usable || uncertainties) && !speech.supported && <p className="notice">Read-aloud is unavailable in this browser.</p>}
+        {speech.error && <p className="notice" role="alert">{speech.error}</p>}
+        {uncertainties && (
+          <section className="notice" aria-labelledby="uncertainties">
+            <div className="section-header">
+              <h2 id="uncertainties">What may be unclear</h2>
+              <SpeechButton speech={speech} section="what may be unclear" parts={[{ text: uncertainties, language }]} />
+            </div>
+            <ul lang={language} dir="auto">
+              {result.uncertainties.map((item, index) => <li key={index}>{item}</li>)}
+            </ul>
+          </section>
+        )}
+        {usable && (
+          <>
+            {result.explanations && (
+              <section className="card explanation result-section">
                 <div className="section-header">
-                  <h2><FileText size={21} aria-hidden="true" /> Full extracted label</h2>
-                  <SpeechButton speech={speech} section="full extracted label" parts={[{ text: result.extracted_text, language: source }]} />
+                  <h2>{example ? 'Example explanation' : 'AI explanation'}</h2>
+                  <SpeechButton speech={speech} section="explanation" parts={[{ text: result.explanations[level], language }]} />
                 </div>
-                <p className="transcript" lang={source} dir="auto">{result.extracted_text}</p>
+                <div className="explanation-options">
+                  <label htmlFor="reading-level">Reading level</label>
+                  <select id="reading-level" value={level} onChange={event => {
+                    speech.stop();
+                    changeView({ level: event.target.value === 'detailed' ? 'detailed' : 'simple' });
+                  }}>
+                    <option value="simple">Plain language</option>
+                    <option value="detailed">More detail</option>
+                  </select>
+                  <span className="muted">{languages[language].label}</span>
+                </div>
+                <p className="transcript" lang={language} dir="auto">{result.explanations[level]}</p>
               </section>
-              {result.explanations && (
-                <section className="card explanation result-section">
-                  <div className="section-header">
-                    <h2>{example ? 'Example explanation' : 'AI explanation'}</h2>
-                    <SpeechButton speech={speech} section="explanation" parts={[{ text: result.explanations[level], language }]} />
-                  </div>
-                  <div className="explanation-options">
-                    <label htmlFor="reading-level">Reading level</label>
-                    <select id="reading-level" value={level} onChange={event => {
-                      speech.stop();
-                      setLevel(event.target.value === 'detailed' ? 'detailed' : 'simple');
-                    }}>
-                      <option value="simple">Plain language</option>
-                      <option value="detailed">More detail</option>
-                    </select>
-                    <span className="muted">{languages[language].label}</span>
-                  </div>
-                  <p className="transcript" lang={language} dir="auto">{result.explanations[level]}</p>
-                </section>
-              )}
-              {result.pharmacist_questions.length > 0 && (
-                <section className="card result-section">
-                  <h2>Questions for your pharmacist</h2>
-                  <ul lang={language} dir="auto">
-                    {result.pharmacist_questions.map((item, index) => <li key={index}>{item}</li>)}
-                  </ul>
-                </section>
-              )}
-            </>
-          )}
-        </div>
-        {canSave && (
-          <aside aria-label="Save options">
+            )}
+            {(Object.keys(labelSections) as Array<keyof typeof labelSections>).map(key => (
+              <PrintedLabelSection key={key} {...labelSections[key]} section={result[key]} language={source} speech={speech} evidence={evidence} />
+            ))}
             <section className="card result-section">
-              <h2>Keep this scan</h2>
-              <p className="muted">Save extracted text and explanations. Source photos stay with the current result.</p>
-              {!example && (
-                <>
-                  <button type="button" className="button outline" disabled={saveState === 'saved'} onClick={save}>
-                    <Bookmark size={19} aria-hidden="true" /> Save text on this browser
-                  </button>
-                  {saveState === 'saved' && <p role="status">Scan text saved on this browser.</p>}
-                  {saveState === 'failed' && <p role="alert" className="notice">Scan not saved. {saveError}</p>}
-                </>
-              )}
-              <button type="button" className="button outline" disabled={mongoSaving || mongoSaved} onClick={saveToMongo}>
-                <Bookmark size={19} aria-hidden="true" /> {mongoSaving ? 'Saving to MongoDB…' : 'Save text to MongoDB'}
-              </button>
-              <p className="muted">MongoDB history is private to this browser session. Anyone using this browser profile can reopen its saved scans.</p>
-              {mongoSaved && <p role="status">{example ? 'Prepared example' : 'Scan text'} saved to MongoDB.</p>}
-              {mongoError && <p role="alert" className="notice">MongoDB save failed. {mongoError}</p>}
+              <div className="section-header">
+                <h2><FileText size={21} aria-hidden="true" /> Full extracted label</h2>
+                <SpeechButton speech={speech} section="full extracted label" parts={[{ text: result.extracted_text, language: source }]} />
+              </div>
+              <p className="transcript" lang={source} dir="auto">{result.extracted_text}</p>
             </section>
-          </aside>
+            {result.pharmacist_questions.length > 0 && (
+              <section className="card result-section">
+                <h2>Questions for your pharmacist</h2>
+                <ul lang={language} dir="auto">
+                  {result.pharmacist_questions.map((item, index) => <li key={index}>{item}</li>)}
+                </ul>
+              </section>
+            )}
+          </>
         )}
       </div>
     </>

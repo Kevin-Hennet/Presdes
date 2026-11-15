@@ -16,7 +16,22 @@ export function useSpeech() {
     window.speechSynthesis.cancel();
   }, []);
 
-  useEffect(() => cancel, [cancel]);
+  useEffect(() => {
+    function stopOnExit() {
+      cancel();
+      setCurrent(null);
+    }
+    function stopWhenHidden() {
+      if (document.hidden) stopOnExit();
+    }
+    document.addEventListener('visibilitychange', stopWhenHidden);
+    window.addEventListener('pagehide', stopOnExit);
+    return () => {
+      document.removeEventListener('visibilitychange', stopWhenHidden);
+      window.removeEventListener('pagehide', stopOnExit);
+      cancel();
+    };
+  }, [cancel]);
 
   function stop() {
     cancel();
