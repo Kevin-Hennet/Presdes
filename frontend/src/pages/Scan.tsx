@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ScanLine } from 'lucide-react';
-import { analyze, languages, previewHeic, type Language } from '../api/client';
+import { ApiError, analyze, languages, previewHeic, type Language } from '../api/client';
 import { Capture } from '../components/Capture';
 import { Results } from '../components/Results';
 import {
@@ -224,7 +224,7 @@ export default function ScanPage({ active }: { active: boolean }) {
       if (conversion.current === controller) commitPhotos(batch, true);
     } catch (cause) {
       if (conversion.current !== controller) return;
-      void updateWorkspace({ pendingPhotos: null });
+      if (cause instanceof ApiError) void updateWorkspace({ pendingPhotos: null });
       setError(cause instanceof Error ? cause.message : 'Could not prepare the photo. Try again.');
     } finally {
       if (conversion.current === controller) {
@@ -274,7 +274,9 @@ export default function ScanPage({ active }: { active: boolean }) {
       }
     } catch (cause) {
       if (pending.current === controller) {
-        void updateWorkspace({ analyzing: false });
+        // A transport failure can happen before the old document exits on reload.
+        // Keep its checkpoint until the app has a result or an explicit server rejection.
+        if (cause instanceof ApiError) void updateWorkspace({ analyzing: false });
         setError(cause instanceof Error ? cause.message : 'Could not analyze these photos. Try again.');
       }
     } finally {
@@ -368,7 +370,7 @@ export default function ScanPage({ active }: { active: boolean }) {
               </div>
             </div>
           )}
-          {workspace.analyzing && !busy && <p className="notice" role="status">Analysis was interrupted. Analyze the photos again when you’re ready.</p>}
+          {workspace.analyzing && !busy && !error && <p className="notice" role="status">Analysis was interrupted. Analyze the photos again when you’re ready.</p>}
           {photos.length > 0 && (
             <section className="photo-review" aria-labelledby="review-heading">
               <h3 id="review-heading" ref={reviewHeading} tabIndex={-1}>

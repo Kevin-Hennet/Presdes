@@ -118,10 +118,10 @@ export async function previewHeic(file: File, signal: AbortSignal): Promise<Blob
   }
   if (!response.ok) {
     const data = await response.json().catch(() => null);
-    throw new Error(typeof data?.detail === 'string' ? data.detail : 'Could not prepare this iPhone photo. Choose another photo or export it as a JPG.');
+    throw new ApiError(response.status, typeof data?.detail === 'string' ? data.detail : 'Could not prepare this iPhone photo. Choose another photo or export it as a JPG.');
   }
   if (!response.headers.get('Content-Type')?.startsWith('image/jpeg')) {
-    throw new Error('The photo preview could not be opened. Choose the photo again.');
+    throw new ApiError(response.status, 'The photo preview could not be opened. Choose the photo again.');
   }
   return response.blob();
 }

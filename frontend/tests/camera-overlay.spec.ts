@@ -119,7 +119,7 @@ test('keeps a full-screen preview and bottom thumbnails through capture, review,
   await page.getByRole('button', { name: 'Display' }).click();
   await page.getByRole('checkbox', { name: 'Large text' }).check();
   await page.getByRole('button', { name: 'Display' }).click();
-  await page.getByRole('button', { name: 'Open camera' }).click();
+  await page.getByRole('button', { name: 'Open camera' }).press('Enter');
 
   const camera = page.getByRole('dialog', { name: 'Label camera' });
   const preview = camera.getByLabel('Live camera preview');
@@ -207,7 +207,7 @@ test('contains keyboard focus, locks page scroll and releases the camera on Esca
   await expect(page.locator('html')).toHaveAttribute('data-camera-stops', '1');
   expect(await page.evaluate(() => getComputedStyle(document.body).position)).toBe('static');
 
-  await open.click();
+  await open.press('Enter');
   await expect(camera.getByRole('button', { name: 'Capture photo' })).toBeEnabled();
   await page.evaluate(() => window.dispatchEvent(new Event('end-test-camera')));
   await expect(camera).toHaveCount(0);
