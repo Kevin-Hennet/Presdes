@@ -114,3 +114,5 @@ Saved-scan mutations require the app's own `Origin` and an `X-PresDes-Request: 1
 - From `backend`, install `requirements-test.txt` and run `python -m pytest -q`.
 - From `frontend`, run `npm ci`, `npx playwright install chromium webkit`, `npm run build`, and `npm test`. The camera tests also run with iPhone WebKit emulation. On Linux CI, install the browsers with `--with-deps`.
 - See the [review findings and verification](docs/verification.md) and the [fictional-label demo and phone checklist](docs/demo.md).
+
+This project can potentially be very useful for old people, dyslexic people or for anyone who finds it hard to read small text.
