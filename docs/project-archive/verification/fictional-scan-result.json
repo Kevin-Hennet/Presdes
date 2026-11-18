@@ -1,0 +1,45 @@
+{
+  "readability": "readable",
+  "source_language": "en",
+  "extracted_text": "FICTIONAL LABEL \u00b7 PRESDES DEMO\n\nPine Sample 5 mg\n\nTraining label only. Do not take this product.\n\nKeep this demonstration container out of reach of children.\n\nDiscard after NOV 30 2027.",
+  "medication": {
+    "state": "found",
+    "excerpts": [
+      "Pine Sample 5 mg"
+    ]
+  },
+  "directions": {
+    "state": "found",
+    "excerpts": [
+      "Training label only. Do not take this product."
+    ]
+  },
+  "warnings": {
+    "state": "found",
+    "excerpts": [
+      "Training label only. Do not take this product.",
+      "Keep this demonstration container out of reach of children."
+    ]
+  },
+  "printed_dates": {
+    "state": "found",
+    "excerpts": [
+      "Discard after NOV 30 2027."
+    ]
+  },
+  "explanations": {
+    "simple": "The label is marked as a fictional/demo training label. It says \u201cPine Sample 5 mg,\u201d says not to take the product, keep the demonstration container away from children, and discard it after NOV 30 2027.",
+    "detailed": "The printed wording identifies the item as \u201cFICTIONAL LABEL \u00b7 PRESDES DEMO\u201d and lists \u201cPine Sample 5 mg.\u201d The label states it is for training only and explicitly says, \u201cDo not take this product.\u201d It also includes a child-safety warning to keep the demonstration container out of reach of children. The only discard date shown is \u201cDiscard after NOV 30 2027.\u201d"
+  },
+  "uncertainties": [
+    "This appears to be a fictional demonstration label, not a real medication label.",
+    "No dosing schedule or instructions for use are printed other than \u201cDo not take this product.\u201d"
+  ],
+  "pharmacist_questions": [
+    "Can you confirm this container is only for demonstration or training?",
+    "Should this demonstration container be discarded after NOV 30 2027 as printed?"
+  ],
+  "id": "41c622fe-0f20-4e97-ba0d-cafcb6e2c032",
+  "created_at": "2026-11-15T02:48:48.909442Z",
+  "explanation_language": "en"
+}

@@ -1,0 +1,197 @@
+{
+  "archived_on": "2026-11-18",
+  "files": [
+    {
+      "original_relative_path": "PresDes_Code_Review.md",
+      "archive_path": "planning/PresDes_Code_Review.md",
+      "sha256": "b5b197c378cbe6a10ed407cdc9cca2ce9b77dbd309f8774e9711bcd07a1ba99e",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "PresDes_Implementation_Plan.md",
+      "archive_path": "planning/PresDes_Implementation_Plan.md",
+      "sha256": "d19921d6f74172d9aa0d04d1417a9364b55563ed06aedd2636108ceb0ec848d2",
+      "local_paths_normalized": true
+    },
+    {
+      "original_relative_path": "PresDes_Mobile_Scan_UI_Plan.md",
+      "archive_path": "planning/PresDes_Mobile_Scan_UI_Plan.md",
+      "sha256": "ebb83d41c84f9bf64816ab1eec16bf1d1a2b8a20b2a53d1d632c546f1d211d9a",
+      "local_paths_normalized": true
+    },
+    {
+      "original_relative_path": "devpost-story-before-update.md",
+      "archive_path": "devpost/devpost-story-before-update.md",
+      "sha256": "c82278b7dc8985a1e1f8e0315a081f0be313f42d2f504f00e485d986c64a1926",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "devpost-submission.md",
+      "archive_path": "devpost/devpost-submission.md",
+      "sha256": "5fb572077d91db672948810c58c72b5b53f9633e252d4dff613e6167e7e1615a",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "devpost-contribution-updated.jpg",
+      "archive_path": "devpost/devpost-contribution-updated.jpg",
+      "sha256": "671ad651e7b39ffe64b768188578a4db83ee5a784a8d2fbc4c7b01aaaec68dfd",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "presdes-devpost-scan.jpg",
+      "archive_path": "devpost/presdes-devpost-scan.jpg",
+      "sha256": "ae6af4def846bc5f09fe414ba4d98239b7280cee4565b96034a81a1ee2d336fa",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "presdes-devpost-result.jpg",
+      "archive_path": "devpost/presdes-devpost-result.jpg",
+      "sha256": "04107ff4500d6f8c809ce7fa99193c40234ee4377eaf4ab0b952db3400446ff1",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "presdes-devpost-explanation.jpg",
+      "archive_path": "devpost/presdes-devpost-explanation.jpg",
+      "sha256": "11aacd1097b076ac41d4036dc5d0264a5465171fae12605c9052c6c4960f1d3d",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "presdes-devpost-repo-updated.jpg",
+      "archive_path": "devpost/presdes-devpost-repo-updated.jpg",
+      "sha256": "347d7e78af09aeb72e2c7518187023795ec87b4ef9339606bb84e32e86ae31d8",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "presdes-devpost-submitted.jpg",
+      "archive_path": "devpost/presdes-devpost-submitted.jpg",
+      "sha256": "41745f2b7e8f725bb4282563390629e70cda8a9a3c190aa01bdaf5990f901301",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "PresDes_after_home.png",
+      "archive_path": "screenshots/PresDes_after_home.png",
+      "sha256": "fd6b259f878f8ec7b2e05af463dd6bcd98802840b625165a8b4c05f76a41ff6d",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "PresDes_after_mobile.png",
+      "archive_path": "screenshots/PresDes_after_mobile.png",
+      "sha256": "15e32fdf150ba64174fb852438642582666bda931812f71545192575b65c4291",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "PresDes_after_results.png",
+      "archive_path": "screenshots/PresDes_after_results.png",
+      "sha256": "01cad4aff3871aa26e78f60b906850d6014fdbe0424bbfde56136e172ada34b3",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "PresDes_verified_photo_top.png",
+      "archive_path": "screenshots/PresDes_verified_photo_top.png",
+      "sha256": "1d5a45b45dadd6e9c845edceb3725ce8d6fa273e38530ec974d8738df6cad435",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "presdes-ready-for-scan.jpg",
+      "archive_path": "screenshots/presdes-ready-for-scan.jpg",
+      "sha256": "868144000873fb4f2b569cdce5623fd5477bfb39ebb61111ab56e09731a8e8ac",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "PresDes LinkedIn Post/01 - Mobile results.png",
+      "archive_path": "linkedin/01 - Mobile results.png",
+      "sha256": "3d2d396c59403d2ce14569ea8f2044ecc348c25b6b351775f2118f20e185400b",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "PresDes LinkedIn Post/02 - Photo upload.jpg",
+      "archive_path": "linkedin/02 - Photo upload.jpg",
+      "sha256": "ae6af4def846bc5f09fe414ba4d98239b7280cee4565b96034a81a1ee2d336fa",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "PresDes LinkedIn Post/First comment.txt",
+      "archive_path": "linkedin/First comment.txt",
+      "sha256": "ec7e9f7e52a4117d26655bb4aa6aef2746d223ef60c8725bdef0b4a30a67cbd5",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "PresDes LinkedIn Post/Image alt text.txt",
+      "archive_path": "linkedin/Image alt text.txt",
+      "sha256": "7b3c4b217dd69dbdbea5397ec8649e3ea2010fe3513829a2b3e606c0921194ff",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "PresDes LinkedIn Post/LinkedIn post.txt",
+      "archive_path": "linkedin/LinkedIn post.txt",
+      "sha256": "2f37fe185e66198f67313d891f35c67489502477e20789b386047e703abda763",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "presentation-demo/PresDes Presentation.pptx",
+      "archive_path": "presentation/PresDes Presentation.pptx",
+      "sha256": "50038a57d54e413e44b4427b3bdc50d4262e3ed566a7e991e84ccabc5d7cbf06",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "presentation-demo/presdes-demo-recording.webm",
+      "archive_path": "presentation/presdes-demo-recording.webm",
+      "sha256": "e0896255859e8895a3e0379b28d296f663876193873e83d03bcfdb91ded2865d",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "presentation-demo/presdes-results-phone.png",
+      "archive_path": "presentation/presdes-results-phone.png",
+      "sha256": "3d2d396c59403d2ce14569ea8f2044ecc348c25b6b351775f2118f20e185400b",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "scan-ui-preview/01-mobile-empty.png",
+      "archive_path": "scan-ui/01-mobile-empty.png",
+      "sha256": "a9c192f8aa11bf39474e121206a823e086a201248d8f9ecbf8340114d0bf1dd3",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "scan-ui-preview/02-mobile-review.png",
+      "archive_path": "scan-ui/02-mobile-review.png",
+      "sha256": "e14162d3322f989cc660c38e4c2bcc400c5de61b9edc1a78e18b3c6d0a8e0ea3",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "scan-ui-preview/03-mobile-analyzing.png",
+      "archive_path": "scan-ui/03-mobile-analyzing.png",
+      "sha256": "709bcad198043a65e9635053b848b2ab85135b81f0160e73f149dedad2ce673b",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "scan-ui-preview/04-desktop-empty.png",
+      "archive_path": "scan-ui/04-desktop-empty.png",
+      "sha256": "a7414816ad19083dd692f79d86a87e7e4b634d53494f5adc326c7b0d29c6d6a1",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "scan-ui-preview/05-narrow-large-text.png",
+      "archive_path": "scan-ui/05-narrow-large-text.png",
+      "sha256": "e255a261c69ad85ac8f0bdac445a48f2655dddb4a83811294062f9b6a82057ce",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "scan-ui-preview/06-analysis-motion.webm",
+      "archive_path": "scan-ui/06-analysis-motion.webm",
+      "sha256": "446d243ecc84582b4bffa25a060366c7ccbc1f2d52cbc2fc5f20ff25677143b0",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "scan-ui-preview/07-photo-controls.jpg",
+      "archive_path": "scan-ui/07-photo-controls.jpg",
+      "sha256": "48a9b879eac0e27b7c89b931046cb9bc407921f06f9040fc9a02eb3b2809a583",
+      "local_paths_normalized": false
+    },
+    {
+      "original_relative_path": "live-scan-verification.json",
+      "archive_path": "verification/fictional-scan-result.json",
+      "sha256": "d6a23f3a41180d8157a9d666b8d022f9316d5b87fb6575733f11b05485cabb4d",
+      "local_paths_normalized": false
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+At HackUMass XIV, my team and I built PresDes to make medication labels easier to read. Once we started working on it, we realized how much of the problem was just getting a good photo. The print is tiny, the label wraps around the bottle, and glare can wipe out a whole line.
+
+With PresDes, you can take up to four photos of the same bottle, see what the AI was able to read, and listen to the directions and warnings.
+
+I spent most of my time on the phone experience. I helped design and test the full-screen camera, the flow for taking and reviewing multiple photos, and the read-aloud controls. I also helped connect MongoDB Atlas so people could revisit and bookmark scans, deployed the app on Render, and set up GitHub Actions to run checks before releases.
+
+My favorite moment in the demo was when we scanned a fictional label and PresDes pointed out that there was no dosing schedule visible. You could tap to see the original photo and check it yourself. That’s a small detail, but it’s the part I’m proudest of.
+
+Next, we’d like to try comparing what PresDes reads with official drug-label references so we can flag anything that looks off.
+
+Big thanks to my teammates and everyone who put on HackUMass. If you’ve ever had trouble reading a medication label, I’d love to hear what would’ve made it easier.
+
+#HackUMass #Accessibility

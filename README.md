@@ -116,3 +116,7 @@ Saved-scan mutations require the app's own `Origin` and an `X-PresDes-Request: 1
 - See the [review findings and verification](docs/verification.md) and the [fictional-label demo and phone checklist](docs/demo.md).
 
 This project can potentially be very useful for old people, dyslexic people or for anyone who finds it hard to read small text.
+
+## Project materials
+
+See the [project archive](docs/project-archive/README.md) for the hackathon presentation, demo recordings, Devpost and LinkedIn drafts, screenshots, and historical planning and review documents.

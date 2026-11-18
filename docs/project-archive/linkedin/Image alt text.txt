@@ -1,0 +1,7 @@
+01 - Mobile results.png
+PresDes results for a fictional medication label. The app flags that no dosing schedule is visible and includes buttons to view the original photo or listen to the results.
+
+02 - Photo upload.jpg
+PresDes scan screen with camera and upload buttons and instructions for taking up to four overlapping photos of the same bottle.
+
+Upload the screenshots in numerical order. Paste each description into ALT below its image preview. Tag your teammates in the thank-you line.
